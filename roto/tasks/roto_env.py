@@ -14,20 +14,14 @@ including simulation setup, sensors, and reward utilities.
 
 from __future__ import annotations
 
-import gymnasium as gym
-import numpy as np
 import torch
 
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg, ViewerCfg
 from isaaclab.scene import InteractiveSceneCfg
-
 from isaaclab.sim import PhysxCfg, SimulationCfg
 from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.math import (
-    quat_conjugate,
-    quat_from_angle_axis,
-    quat_mul,
     sample_uniform,
     saturate,
 )
@@ -39,10 +33,11 @@ class RotoEnvCfg(DirectRLEnvCfg):
     Configuration class for RoTO RL environments.
     Defines simulation parameters, robot and object configs, sensors, and scene setup.
     """
+
     # Physics simulation parameters
     physics_dt = 1 / 120  # Simulation timestep (seconds)
-    decimation = 2        # Number of physics steps per control step
-    render_interval = 2   # Physics steps per rendering step
+    decimation = 2  # Number of physics steps per control step
+    render_interval = 2  # Physics steps per rendering step
 
     # Isaac 4.5 compatibility
     observation_space = 0
@@ -108,8 +103,7 @@ class RotoEnv(DirectRLEnv):
 
         # Indices of actuated joints
         self.actuated_dof_indices = [
-            self.robot.joint_names.index(joint_name)
-            for joint_name in cfg.actuated_joint_names
+            self.robot.joint_names.index(joint_name) for joint_name in cfg.actuated_joint_names
         ]
         self.actuated_dof_indices.sort()
 
@@ -126,7 +120,7 @@ class RotoEnv(DirectRLEnv):
 
         self.normalised_joint_pos = torch.zeros((self.num_envs, self.num_joints), device=self.device)
         self.normalised_joint_vel = torch.zeros((self.num_envs, self.num_joints), device=self.device)
-        
+
         # Unit vectors for rotation calculations
         self.x_unit_tensor = torch.tensor([1, 0, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
         self.y_unit_tensor = torch.tensor([0, 1, 0], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
@@ -134,7 +128,6 @@ class RotoEnv(DirectRLEnv):
 
     def _configure_gym_env_spaces(self):
         """Configure Gymnasium observation and action spaces (placeholder)."""
-        pass
 
     def set_spaces(self, single_obs, obs, single_action, action):
         """
@@ -215,7 +208,7 @@ class RotoEnv(DirectRLEnv):
 
         obs_dict = {"policy": obs_dict}
         return obs_dict
-    
+
     def _reset_robot(self, env_ids, joint_pos_noise=0.125):
         """
         Reset the robot joint positions and velocities.
@@ -233,7 +226,6 @@ class RotoEnv(DirectRLEnv):
         joint_vel = torch.zeros_like(joint_pos)
         self.robot.set_joint_position_target(joint_pos, env_ids=env_ids)
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, env_ids=env_ids)
-
 
     def _compute_intermediate_values(self, env_ids):
         # Get robot data

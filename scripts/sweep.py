@@ -39,29 +39,28 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
 
-
+import numpy as np
 import torch
-import numpy as np 
-import optuna
 
-from isaaclab.utils import update_dict
-from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
-from isaaclab_tasks.utils.hydra import hydra_task_config, register_task_to_hydra
 import isaaclab_tasks  # noqa: F401
-
-from isaaclab_rl.rl.ppo import PPO, PPO_DEFAULT_CONFIG
-from isaaclab_rl.tools.writer import Writer
-
+import optuna
 from common_utils import (
     LOG_PATH,
-    make_env,
     make_aux,
+    make_env,
     make_memory,
     make_models,
     make_trainer,
     set_seed,
     update_env_cfg,
 )
+from isaaclab.utils import update_dict
+from isaaclab_tasks.utils.hydra import register_task_to_hydra
+from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+from isaaclab_rl.rl.ppo import PPO, PPO_DEFAULT_CONFIG
+from isaaclab_rl.tools.writer import Writer
+
 
 class OptimisationRunner:
     def __init__(self, study_name, n_startup_trials, n_warmup_steps, interval_steps):
@@ -69,16 +68,14 @@ class OptimisationRunner:
         self.sampler = optuna.samplers.TPESampler(n_startup_trials=n_startup_trials)
 
         self.pruner = optuna.pruners.MedianPruner(
-            n_startup_trials=n_startup_trials,
-            n_warmup_steps=n_warmup_steps,
-            interval_steps=interval_steps
+            n_startup_trials=n_startup_trials, n_warmup_steps=n_warmup_steps, interval_steps=interval_steps
         )
 
         # n_steps = 200_000_000 / (env_cfg.scene.num_envs - agent_cfg["trainer"]["num_eval_envs"])
-        # n_evals = int(n_steps / 300) 
+        # n_evals = int(n_steps / 300)
         # self.pruner=optuna.pruners.HyperbandPruner(
-        #     min_resource=1, 
-        #     max_resource=n_evals, 
+        #     min_resource=1,
+        #     max_resource=n_evals,
         #     reduction_factor=3
         # ),
         # self.pruner = optuna.pruners.NopPruner()
@@ -95,9 +92,7 @@ class OptimisationRunner:
     def run(self, n_trials=50):
 
         self.study.optimize(
-            lambda trial: self.objective(
-                trial, env=env, env_cfg=env_cfg, agent_cfg=agent_cfg
-            ),
+            lambda trial: self.objective(trial, env=env, env_cfg=env_cfg, agent_cfg=agent_cfg),
             n_trials=n_trials,
             show_progress_bar=True,
             gc_after_trial=True,
@@ -130,12 +125,12 @@ class OptimisationRunner:
         # PPO hparams
         # memory issues with large rollouts + aux tasks
         if "ssl_task" in agent_cfg:
-            if (agent_cfg["ssl_task"]["type"] == "forward_dynamics"):
+            if agent_cfg["ssl_task"]["type"] == "forward_dynamics":
                 rollouts = trial.suggest_categorical("rollouts", [16, 32])
             else:
-                rollouts = trial.suggest_categorical("rollouts", [16,32,64,96])
+                rollouts = trial.suggest_categorical("rollouts", [16, 32, 64, 96])
         else:
-            rollouts = trial.suggest_categorical("rollouts", [16,32,64,96])
+            rollouts = trial.suggest_categorical("rollouts", [16, 32, 64, 96])
         mini_batches = trial.suggest_categorical("mini_batches", [4, 8, 16, 32])
         learning_epochs = trial.suggest_int("learning_epochs", low=5, high=20, step=1)
         learning_rate = trial.suggest_float("learning_rate", low=1e-6, high=0.003, log=True)
@@ -203,7 +198,7 @@ class OptimisationRunner:
             writer=writer,
             ssl_task=ssl_task,
             dtype=dtype,
-            debug=agent_cfg["experiment"]["debug"]
+            debug=agent_cfg["experiment"]["debug"],
         )
 
         # Let's go!
@@ -219,7 +214,6 @@ class OptimisationRunner:
         if should_prune:
             raise optuna.TrialPruned()
         return best_return
-
 
 
 if __name__ == "__main__":
@@ -252,7 +246,9 @@ if __name__ == "__main__":
     if sweep:
         # LOGGING SETUP
         agent_cfg["experiment"]["experiment_name"] = args_cli.task + "_" + args_cli.agent_cfg + "_" + args_cli.study
-        agent_cfg["experiment"]["wandb_kwargs"]["group"] = args_cli.task + "_" + args_cli.agent_cfg + "_" + args_cli.study
+        agent_cfg["experiment"]["wandb_kwargs"]["group"] = (
+            args_cli.task + "_" + args_cli.agent_cfg + "_" + args_cli.study
+        )
         storage = "./sweep_logs/" + agent_cfg["sweeper"]["storage"]
         n_warmup_steps = agent_cfg["sweeper"]["warmup_timesteps_M"] * 1e6
         agent_cfg["trainer"]["max_global_timesteps_M"] = max_sweep_timesteps_M
@@ -299,13 +295,14 @@ if __name__ == "__main__":
     agent_cfg["trainer"]["max_global_timesteps_M"] = max_training_timesteps_M
     agent_cfg["experiment"]["wandb_kwargs"]["group"] = args_cli.task + "_" + args_cli.agent_cfg + "_" + "seeded"
 
-    test_seeds = [5,6,7,8,9,10]
+    test_seeds = [5, 6, 7, 8, 9, 10]
 
     # test_seeds = [9,10,11,12,13]
 
     # try:
     print("Running best trial on multiple seeds:", test_seeds)
     from common_utils import train_one_seed
+
     writer = Writer(agent_cfg, delay_wandb_startup=True)
     print("made writer")
     env_cfg = update_env_cfg(args_cli, env_cfg, agent_cfg)
@@ -319,7 +316,6 @@ if __name__ == "__main__":
         print("Running seed:", seed)
 
         agent_cfg["experiment"]["wandb_kwargs"]["name"] = str(seed)
-        
 
         env_cfg = update_env_cfg(args_cli, env_cfg, agent_cfg)
 
@@ -328,7 +324,6 @@ if __name__ == "__main__":
         train_one_seed(args_cli, env, agent_cfg=agent_cfg, env_cfg=env_cfg, writer=writer, seed=seed)
         writer.close_wandb()
         writer.get_new_log_path()
-
 
     env.close()
     simulation_app.close()

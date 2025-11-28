@@ -6,69 +6,34 @@
 
 from __future__ import annotations
 
-import gymnasium as gym
 import numpy as np
-import os
 import torch
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
-import matplotlib.pyplot as plt
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, RigidObject
-from isaaclab.envs import DirectRLEnv
-from isaaclab.markers import VisualizationMarkers
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.math import quat_conjugate, quat_from_angle_axis, quat_mul, sample_uniform, saturate
-from isaaclab.sensors import (
-    FrameTransformer,
-    FrameTransformerCfg,
-    OffsetCfg,
-    TiledCamera,
-    TiledCameraCfg,
-    ContactSensor,
-    ContactSensorCfg
-)
-from roto.assets.shadow_hand import SHADOW_HAND_CFG
-
-import isaaclab.envs.mdp as mdp
-import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg
-from isaaclab.envs import DirectRLEnvCfg, ViewerCfg
-from isaaclab.managers import EventTermCfg as EventTerm
-from isaaclab.managers import SceneEntityCfg
-from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import PhysxCfg, SimulationCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
-from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.noise import GaussianNoiseCfg, NoiseModelWithAdditiveBiasCfg
-from isaaclab.sensors import (
-    FrameTransformer,
-    FrameTransformerCfg,
-    OffsetCfg,
-    TiledCamera,
-    TiledCameraCfg,
-    ContactSensor,
-    ContactSensorCfg
-)
-from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
+from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.envs import ViewerCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import ContactSensor, ContactSensorCfg
+from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
+from isaaclab.utils import configclass
+from isaaclab.utils.math import quat_conjugate, quat_from_angle_axis, quat_mul
 
+from roto.assets.shadow_hand import SHADOW_HAND_CFG
 from roto.tasks.roto_env import RotoEnv, RotoEnvCfg
+
+from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
+
+
 
 @configclass
 class ShadowEnvCfg(RotoEnvCfg):
 
     eye = (4, -4, 2.1)
     lookat = (2, -2, 0.5)
-    viewer: ViewerCfg = ViewerCfg(eye=eye, lookat=lookat, resolution=(1920,1080))
+    viewer: ViewerCfg = ViewerCfg(eye=eye, lookat=lookat, resolution=(1920, 1080))
 
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(
-        num_envs=4096, env_spacing=0.6, replicate_physics=True
-    )
-
+    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=0.6, replicate_physics=True)
 
     episode_length_s = 10.0  # Episode length in seconds
 
@@ -89,7 +54,7 @@ class ShadowEnvCfg(RotoEnvCfg):
             joint_pos={".*": 0.0},
         )
     )
-    
+
     actuated_joint_names = [
         "robot0_WRJ1",
         "robot0_WRJ0",
@@ -120,7 +85,6 @@ class ShadowEnvCfg(RotoEnvCfg):
         "robot0_thdistal",
     ]
 
-
     # We set the update period to 0 to update the sensor at the same frequency as the simulation
     # contact sensors are called 'left_contact_sensor' and 'right_contact_sensor'
     marker_cfg = FRAME_MARKER_CFG.copy()
@@ -130,7 +94,6 @@ class ShadowEnvCfg(RotoEnvCfg):
         prim_path="/World/envs/env_.*/Robot/robot0_.*distal",
         update_period=0.0,
         history_length=1,
-
     )
     middle_contact_cfg = ContactSensorCfg(
         prim_path="/World/envs/env_.*/Robot/robot0_.*middle",
@@ -141,7 +104,6 @@ class ShadowEnvCfg(RotoEnvCfg):
         prim_path="/World/envs/env_.*/Robot/robot0_.*proximal",
         update_period=0.0,
         history_length=1,
-
     )
     palm_contact_cfg = ContactSensorCfg(
         prim_path="/World/envs/env_.*/Robot/robot0_palm",
@@ -155,7 +117,6 @@ class ShadowEnvCfg(RotoEnvCfg):
     )
 
 
-    
 class ShadowEnv(RotoEnv):
     cfg: ShadowEnvCfg
 
@@ -187,9 +148,8 @@ class ShadowEnv(RotoEnv):
             "tactile_reward": None,
             "transition_reward": None,
             "bounce_reward": None,
-            "air_reward": None
+            "air_reward": None,
         }
-
 
     def _setup_scene(self):
         # add hand, in-hand object, and goal object
@@ -229,7 +189,6 @@ class ShadowEnv(RotoEnv):
         self.scene.sensors["palm_sensor"] = self.palm_sensor
         self.scene.sensors["metacarpal_sensor"] = self.metacarpal_sensor
 
-
     def _get_proprioception(self):
 
         control_errors = self.joint_pos_cmd - self.joint_pos
@@ -249,10 +208,9 @@ class ShadowEnv(RotoEnv):
 
         return prop
 
-    
     def _get_tactile(self):
 
-        distal_forces = self.distal_sensor.data.net_forces_w[:].clone() #.reshape(self.num_envs, 3 * 5)
+        distal_forces = self.distal_sensor.data.net_forces_w[:].clone()  # .reshape(self.num_envs, 3 * 5)
         proximal_forces = self.proximal_sensor.data.net_forces_w[:].clone()
         middle_forces = self.middle_sensor.data.net_forces_w[:].clone()
         palm_forces = self.palm_sensor.data.net_forces_w[:].clone()
@@ -264,7 +222,6 @@ class ShadowEnv(RotoEnv):
         palm_norm = torch.norm(palm_forces, dim=-1)
         metacarpal_norm = torch.norm(metacarpal_forces, dim=-1)
 
-        
         if self.dtype == torch.float16:
             distal_norm = (distal_norm > self.binary_threshold).half()
             proximal_norm = (proximal_norm > self.binary_threshold).half()
@@ -278,20 +235,11 @@ class ShadowEnv(RotoEnv):
             palm_norm = (palm_norm > self.binary_threshold).float()
             metacarpal_norm = (metacarpal_norm > self.binary_threshold).float()
 
-        tactile = torch.cat((
-            distal_norm,
-            proximal_norm,
-            middle_norm,
-            palm_norm,
-            metacarpal_norm
-            ), 
-            dim=-1
-        )
+        tactile = torch.cat((distal_norm, proximal_norm, middle_norm, palm_norm, metacarpal_norm), dim=-1)
 
         self.last_tactile = self.tactile
         self.tactile = tactile
         return tactile
-    
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         if env_ids is None:
@@ -302,8 +250,6 @@ class ShadowEnv(RotoEnv):
 
         # reset hand
         self._reset_robot(env_ids, joint_pos_noise=self.cfg.reset_joint_pos_noise)
-
-
 
 
 @torch.jit.script
@@ -318,4 +264,3 @@ def rotation_distance(object_rot, target_rot):
     # Orientation alignment for the cube in hand and goal cube
     quat_diff = quat_mul(object_rot, quat_conjugate(target_rot))
     return 2.0 * torch.asin(torch.clamp(torch.norm(quat_diff[:, 1:4], p=2, dim=-1), max=1.0))  # changed quat convention
-

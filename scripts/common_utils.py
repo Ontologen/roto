@@ -6,31 +6,22 @@ import os
 import random
 import torch
 
-from isaaclab_rl.rl.memories import Memory
-from isaaclab_rl.rl.policy_value import DeterministicValue, GaussianPolicy
-from isaaclab_rl.rl.trainer import Trainer
 from isaaclab_rl.models.encoder import Encoder
 from isaaclab_rl.models.running_standard_scaler import RunningStandardScaler
+from isaaclab_rl.rl.memories import Memory
+from isaaclab_rl.rl.policy_value import DeterministicValue, GaussianPolicy
+from isaaclab_rl.rl.ppo import PPO, PPO_DEFAULT_CONFIG
+from isaaclab_rl.rl.trainer import Trainer
+from isaaclab_rl.ssl.dynamics import ForwardDynamics
+from isaaclab_rl.ssl.reconstruction import Reconstruction
 from isaaclab_rl.wrappers.frame_stack import FrameStack
 from isaaclab_rl.wrappers.isaaclab_wrapper import IsaacLabWrapper
-from isaaclab_rl.ssl.reconstruction import Reconstruction
-from isaaclab_rl.ssl.dynamics import ForwardDynamics
-from isaaclab_rl.rl.ppo import PPO, PPO_DEFAULT_CONFIG
-from isaaclab_rl.tools.writer import Writer
-from isaaclab_tasks.utils.hydra import hydra_task_config, register_task_to_hydra
-from isaaclab.utils import update_dict
 
-
-import torch
-
-from isaaclab.utils import update_dict
-from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 # ADD YOUR ENVS HERE
-from roto.tasks import franka,shadow  # noqa: F401
+from roto.tasks import franka, shadow  # noqa: F401
 
 # change this to something else if you want
 LOG_PATH = os.getcwd()
-
 
 
 def make_aux(env, rl_memory, encoder, value, value_preprocessor, env_cfg, agent_cfg, writer):
@@ -41,9 +32,29 @@ def make_aux(env, rl_memory, encoder, value, value_preprocessor, env_cfg, agent_
 
         match agent_cfg["ssl_task"]["type"]:
             case "reconstruction":
-                ssl_task = Reconstruction(agent_cfg["ssl_task"], rl_rollout, rl_memory, encoder, value, value_preprocessor, env, env_cfg, writer)
+                ssl_task = Reconstruction(
+                    agent_cfg["ssl_task"],
+                    rl_rollout,
+                    rl_memory,
+                    encoder,
+                    value,
+                    value_preprocessor,
+                    env,
+                    env_cfg,
+                    writer,
+                )
             case "forward_dynamics":
-                ssl_task = ForwardDynamics(agent_cfg["ssl_task"], rl_rollout, rl_memory, encoder, value, value_preprocessor, env, env_cfg, writer)
+                ssl_task = ForwardDynamics(
+                    agent_cfg["ssl_task"],
+                    rl_rollout,
+                    rl_memory,
+                    encoder,
+                    value,
+                    value_preprocessor,
+                    env,
+                    env_cfg,
+                    writer,
+                )
             case _:  # default case
                 print("No auxiliary task")
                 ssl_task = None
@@ -51,6 +62,7 @@ def make_aux(env, rl_memory, encoder, value, value_preprocessor, env_cfg, agent_
     else:
         ssl_task = None
     return ssl_task
+
 
 def make_env(env_cfg, writer, args_cli, obs_stack=1):
 
@@ -82,7 +94,7 @@ def make_env(env_cfg, writer, args_cli, obs_stack=1):
         }
         print("[INFO] Recording videos during training to", writer.video_dir)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
-    
+
     # FrameStack expects a gym env
     if obs_stack > 1:
         env = FrameStack(env, obs_stack=obs_stack)
@@ -215,11 +227,10 @@ def train_one_seed(args_cli, env, agent_cfg=None, env_cfg=None, writer=None, see
         writer=writer,
         ssl_task=ssl_task,
         dtype=dtype,
-        debug=agent_cfg["experiment"]["debug"]
+        debug=agent_cfg["experiment"]["debug"],
     )
 
     # Let's go!
     trainer = make_trainer(env, agent, agent_cfg, ssl_task, writer)
     trainer.train()
     print("Training complete!")
-

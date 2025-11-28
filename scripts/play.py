@@ -16,8 +16,6 @@ a more user-friendly way.
 import argparse
 import os
 import sys
-import time
-import traceback
 
 from isaaclab.app import AppLauncher
 
@@ -37,18 +35,9 @@ parser.add_argument("--agent_cfg", type=str, default=None, help="Name of the con
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 # if you have RTX5090, use these args for better rendering
 parser.add_argument(
-    "--renderer",
-    type=str,
-    default="PathTracing",
-    choices=["RayTracedLighting", "PathTracing"],
-    help="Renderer to use."
+    "--renderer", type=str, default="PathTracing", choices=["RayTracedLighting", "PathTracing"], help="Renderer to use."
 )
-parser.add_argument(
-    "--samples_per_pixel_per_frame",
-    type=int,
-    default=1,
-    help="Number of samples per pixel per frame."
-)
+parser.add_argument("--samples_per_pixel_per_frame", type=int, default=1, help="Number of samples per pixel per frame.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -59,18 +48,8 @@ sys.argv = [sys.argv[0]] + hydra_args
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 import torch
-import numpy as np 
-import optuna
-# from roto.tasks import franka,shadow  # noqa: F401
 
-from isaaclab.utils import update_dict
-from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
-from isaaclab_tasks.utils.hydra import hydra_task_config, register_task_to_hydra
 import isaaclab_tasks  # noqa: F401
-from isaaclab_rl.rl.ppo import PPO, PPO_DEFAULT_CONFIG
-from isaaclab_rl.tools.writer import Writer
-from isaaclab_tasks.utils.hydra import hydra_task_config
-
 from common_utils import (
     LOG_PATH,
     make_env,
@@ -78,16 +57,23 @@ from common_utils import (
     set_seed,
     update_env_cfg,
 )
-
-import torch
-
 from isaaclab.utils import update_dict
+from isaaclab_tasks.utils.hydra import register_task_to_hydra
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+
+from isaaclab_rl.rl.ppo import PPO, PPO_DEFAULT_CONFIG
+from isaaclab_rl.tools.writer import Writer
+
+# from roto.tasks import franka,shadow  # noqa: F401
+
+
+
+
 
 
 def main():
     """Play a skrl agent."""
-# parse configuration
+    # parse configuration
     env_cfg, agent_cfg = register_task_to_hydra(args_cli.task, "default_cfg")
 
     specialised_cfg = load_cfg_from_registry(args_cli.task, args_cli.agent_cfg)
@@ -129,7 +115,7 @@ def main():
         writer=writer,
         ssl_task=None,
         dtype=dtype,
-        debug=agent_cfg["experiment"]["debug"]
+        debug=agent_cfg["experiment"]["debug"],
     )
 
     # initialize agent
@@ -208,7 +194,3 @@ if __name__ == "__main__":
         # close sim app
         print("CLOSING")
         simulation_app.close()
-
-
-
-

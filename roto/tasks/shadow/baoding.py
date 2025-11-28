@@ -6,32 +6,14 @@
 
 from __future__ import annotations
 
-
 import torch
 
-
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, RigidObject
-from isaaclab.envs import DirectRLEnv
-from isaaclab.markers import VisualizationMarkers
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils.math import quat_conjugate, quat_from_angle_axis, quat_mul, sample_uniform, saturate
-from isaaclab.sensors import (
-    FrameTransformer,
-    FrameTransformerCfg,
-    OffsetCfg,
-    TiledCamera,
-    TiledCameraCfg,
-    ContactSensor,
-    ContactSensorCfg
-)
-from isaaclab.markers import VisualizationMarkers
-from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
+from isaaclab.sim.schemas.schemas_cfg import CollisionPropertiesCfg
 from isaaclab.utils import configclass
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
-from isaaclab.sim.schemas.schemas_cfg import CollisionPropertiesCfg, MassPropertiesCfg, RigidBodyPropertiesCfg
+from isaaclab.utils.math import sample_uniform
 
 from roto.tasks.shadow.shadow import ShadowEnv, ShadowEnvCfg
 
@@ -46,18 +28,19 @@ every child env should implement own
 
 """
 
+
 @configclass
 class BaodingCfg(ShadowEnvCfg):
 
-    act_moving_average  = 1
+    act_moving_average = 1
 
     # in-hand ball
-    ball_mass_g = 55 #55
+    ball_mass_g = 55  # 55
     ball_mass_kg = 0.001 * ball_mass_g
     ball_diameter_inches = 1.5
     ball_radius_m = (ball_diameter_inches / 2) * 2.54 / 100
     ball_reset_height = 0.55
-    ball_diameter_m = ball_radius_m*2
+    ball_diameter_m = ball_radius_m * 2
     target_offset = ball_diameter_m / 1.73205080757
     target_offset += 0.001
 
@@ -67,7 +50,7 @@ class BaodingCfg(ShadowEnvCfg):
     # target_offset = ball_diameter_m / 1.41421356237
     palm_target_x = -0.03
     palm_target_y = -0.38
-    palm_target_z = 0.46 # + 0.01
+    palm_target_z = 0.46  # + 0.01
     diagonal_target_x = palm_target_x + target_offset
     diagonal_target_y = palm_target_y + target_offset
     # diagonal_target_z = palm_target_z # + target_offset
@@ -76,7 +59,7 @@ class BaodingCfg(ShadowEnvCfg):
     brat = (0.5411764705882353, 0.807843137254902, 0)
     brat_pink = (0.7294117647058823, 0.3176470588235294, 0.7137254901960784)
 
-    colour_1 = (0.80392, 0.7058, 0.858823) 
+    colour_1 = (0.80392, 0.7058, 0.858823)
     colour_2 = (0.741176, 0.878, 0.9960784)
     brat_pink = (0.3294117647058823, 0.3176470588235294, 0.9137254901960784)
 
@@ -102,7 +85,7 @@ class BaodingCfg(ShadowEnvCfg):
                 max_depenetration_velocity=1000.0,
             ),
             mass_props=sim_utils.MassPropertiesCfg(mass=ball_mass_kg),
-            collision_props=CollisionPropertiesCfg(collision_enabled=True)
+            collision_props=CollisionPropertiesCfg(collision_enabled=True),
         ),
     )
     ball_2_cfg: RigidObjectCfg = RigidObjectCfg(
@@ -123,33 +106,32 @@ class BaodingCfg(ShadowEnvCfg):
                 max_depenetration_velocity=1000.0,
             ),
             mass_props=sim_utils.MassPropertiesCfg(mass=ball_mass_kg),
-            collision_props=CollisionPropertiesCfg(collision_enabled=True)
+            collision_props=CollisionPropertiesCfg(collision_enabled=True),
         ),
     )
     target1_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
         prim_path="/Visuals/target_1",
         markers={
             "target_1": sim_utils.SphereCfg(
-            radius=ball_radius_m*0.6*0.001,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=colour_1)),
+                radius=ball_radius_m * 0.6 * 0.001, visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=colour_1)
+            ),
         },
     )
     target2_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
         prim_path="/Visuals/target_2",
         markers={
             "target_2": sim_utils.SphereCfg(
-            radius=ball_radius_m*0.6*0.001,
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=colour_2)), 
+                radius=ball_radius_m * 0.6 * 0.001, visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=colour_2)
+            ),
         },
     )
-
 
 
 class BaodingEnv(ShadowEnv):
     cfg: BaodingCfg
 
     def __init__(self, cfg: BaodingCfg, render_mode: str | None = None, **kwargs):
-        
+
         super().__init__(cfg, render_mode, **kwargs)
 
         # these buffers are populated in the reward computation with 1 if the goal has been reached
@@ -160,13 +142,13 @@ class BaodingEnv(ShadowEnv):
         self.ball_1_pos = torch.zeros((self.num_envs, 3), dtype=torch.float, device=self.device)
         self.ball_2_pos = torch.zeros((self.num_envs, 3), dtype=torch.float, device=self.device)
 
-        self.ball_1_goal_dist = torch.ones((self.num_envs, ), dtype=torch.float, device=self.device)
-        self.ball_2_goal_dist = torch.ones((self.num_envs, ), dtype=torch.float, device=self.device)
+        self.ball_1_goal_dist = torch.ones((self.num_envs,), dtype=torch.float, device=self.device)
+        self.ball_2_goal_dist = torch.ones((self.num_envs,), dtype=torch.float, device=self.device)
         self.ball_1_goal_dist3 = torch.ones((self.num_envs, 3), dtype=torch.float, device=self.device)
         self.ball_2_goal_dist3 = torch.ones((self.num_envs, 3), dtype=torch.float, device=self.device)
 
         # tracking ball properties
-        self.ball_height_above_hand = torch.zeros((self.num_envs, ), dtype=self.dtype, device=self.device)
+        self.ball_height_above_hand = torch.zeros((self.num_envs,), dtype=self.dtype, device=self.device)
         self.balls_center_vector = torch.zeros((self.num_envs, 3), dtype=self.dtype, device=self.device)
         self.ball_dist = torch.zeros((self.num_envs,), dtype=self.dtype, device=self.device)
         self.ball_1_linvel = torch.zeros((self.num_envs,), dtype=self.dtype, device=self.device)
@@ -194,7 +176,6 @@ class BaodingEnv(ShadowEnv):
         self.ball_2_goal_idx = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
         self.update_goal_pos()
 
-
     def _setup_scene(self):
         super()._setup_scene()
         # add hand, in-hand ball, and goal ball
@@ -217,7 +198,6 @@ class BaodingEnv(ShadowEnv):
         # viz
         self.target1 = VisualizationMarkers(self.cfg.target1_cfg)
         self.target2 = VisualizationMarkers(self.cfg.target2_cfg)
-         
 
     def _get_gt(self):
 
@@ -236,13 +216,11 @@ class BaodingEnv(ShadowEnv):
                 self.ball_1.data.root_ang_vel_w,
                 self.ball_2.data.root_ang_vel_w,
                 self.ball_dist.unsqueeze(1),
-
             ),
             dim=-1,
         )
         # print("gt", gt.size())
         return gt
-    
 
     def _compute_intermediate_values(self, env_ids=None):
         if env_ids is None:
@@ -254,15 +232,14 @@ class BaodingEnv(ShadowEnv):
         self.ball_2_pos = self.ball_2.data.root_pos_w - self.scene.env_origins
         self.balls_center_vector = self.ball_1_pos - self.ball_2_pos
 
-        self.ball_1_goal_dist3 = self.ball_1_pos-self.ball_1_goal_pos
-        self.ball_2_goal_dist3 = self.ball_2_pos-self.ball_2_goal_pos
+        self.ball_1_goal_dist3 = self.ball_1_pos - self.ball_1_goal_pos
+        self.ball_2_goal_dist3 = self.ball_2_pos - self.ball_2_goal_pos
         self.ball_1_goal_dist = torch.norm(self.ball_1_goal_dist3, dim=1)
         self.ball_2_goal_dist = torch.norm(self.ball_2_goal_dist3, dim=1)
 
         self.ball_1_linvel = torch.norm(self.ball_1.data.root_lin_vel_w, dim=1)
         self.ball_2_linvel = torch.norm(self.ball_2.data.root_lin_vel_w, dim=1)
-        self.ball_dist =  torch.norm(self.balls_center_vector, dim=1)
-
+        self.ball_dist = torch.norm(self.balls_center_vector, dim=1)
 
     def _get_rewards(self) -> torch.Tensor:
 
@@ -275,8 +252,6 @@ class BaodingEnv(ShadowEnv):
         (
             total_reward,
             reach_goal_reward,
-
-
         ) = compute_rewards(
             goal_reached,
             self.ball_1_goal_dist,
@@ -291,18 +266,16 @@ class BaodingEnv(ShadowEnv):
             # "fall_penalty": (fall_penalty),
             "ball_1_vel": (self.ball_1_linvel),
             "ball_2_vel": (self.ball_2_linvel),
-            "ball_dist": (self.ball_dist)
+            "ball_dist": (self.ball_dist),
         }
 
-        self.extras["counters"] = {
-            "num_rotations": (self.num_rotations).float()
-        }
+        self.extras["counters"] = {"num_rotations": (self.num_rotations).float()}
 
         if len(goal_reached_ids) > 0:
             self._reset_target_pose(goal_reached_ids)
-        
+
         return total_reward
-    
+
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         self._compute_intermediate_values()
 
@@ -312,10 +285,9 @@ class BaodingEnv(ShadowEnv):
         time_out = self.episode_length_buf >= self.max_episode_length - 1
 
         return out_of_reach, time_out
-    
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
-        
+
         if env_ids is None:
             env_ids = self.robot._ALL_INDICES
 
@@ -327,7 +299,6 @@ class BaodingEnv(ShadowEnv):
 
         self.num_rotations[env_ids] = 0
 
-    
     def _reset_object(self, env_ids):
         # reset ball
         ball_1_default_state = self.ball_1.data.default_root_state.clone()[env_ids]
@@ -337,22 +308,18 @@ class BaodingEnv(ShadowEnv):
         pos_noise = sample_uniform(-0.005, 0.005, (len(env_ids), 3), device=self.device)
 
         # ball 1
-        ball_1_default_state[:, 0:3] = (
-            ball_1_default_state[:, 0:3] + pos_noise + self.scene.env_origins[env_ids]
-        )
+        ball_1_default_state[:, 0:3] = ball_1_default_state[:, 0:3] + pos_noise + self.scene.env_origins[env_ids]
         ball_1_default_state[:, 7:] = torch.zeros_like(self.ball_1.data.default_root_state[env_ids, 7:])
 
         # ball 2
-        ball_2_default_state[:, 0:3] = (
-            ball_2_default_state[:, 0:3] + pos_noise + self.scene.env_origins[env_ids]
-        )
+        ball_2_default_state[:, 0:3] = ball_2_default_state[:, 0:3] + pos_noise + self.scene.env_origins[env_ids]
         ball_2_default_state[:, 7:] = torch.zeros_like(self.ball_2.data.default_root_state[env_ids, 7:])
 
         self.ball_1.write_root_pose_to_sim(ball_1_default_state[:, :7], env_ids)
         self.ball_1.write_root_velocity_to_sim(ball_1_default_state[:, 7:], env_ids)
         self.ball_2.write_root_pose_to_sim(ball_2_default_state[:, :7], env_ids)
         self.ball_2.write_root_velocity_to_sim(ball_2_default_state[:, 7:], env_ids)
-   
+
     def _reset_target_pose(self, reached_goal_ids):
 
         self.ball_goal_idx[reached_goal_ids] = ~self.ball_goal_idx[reached_goal_ids]
@@ -367,32 +334,33 @@ class BaodingEnv(ShadowEnv):
         self.reset_goal_1_buf[reached_goal_ids] = 0
         self.reset_goal_2_buf[reached_goal_ids] = 0
 
-
     def update_goal_pos(self):
         """
         Update goal pos based on idx
         ball_goal_idx = 0
 
-        
+
         """
         # For ball 1: use goal_pos1 when ball_1_goal_idx is False (0), use goal_pos2 when True (1)
         self.ball_1_goal_pos = torch.where(
             self.ball_goal_idx.unsqueeze(-1),  # Expand to match dimensions [num_envs, 1]
             self.goal_pos2,  # When True
-            self.goal_pos1   # When False
+            self.goal_pos1,  # When False
         )
 
         # For ball 2: use goal_pos1 when ball_2_goal_idx is False (0), use goal_pos2 when True (1)
         self.ball_2_goal_pos = torch.where(
             self.ball_goal_idx.unsqueeze(-1),  # Expand to match dimensions [num_envs, 1]
             self.goal_pos1,  # When True
-            self.goal_pos2   # When False
+            self.goal_pos2,  # When False
         )
+
 
 @torch.jit.script
 def distance_reward(object_ee_distance, std: float = 0.1):
-    r_reach = (1 - torch.tanh(object_ee_distance / std))
+    r_reach = 1 - torch.tanh(object_ee_distance / std)
     return r_reach
+
 
 @torch.jit.script
 def compute_rewards(
@@ -400,15 +368,11 @@ def compute_rewards(
     ball_1_goal_dist: torch.Tensor,
     ball_2_goal_dist: torch.Tensor,
 ):
-    
+
     dense_dist_reward = (distance_reward(ball_1_goal_dist) + distance_reward(ball_2_goal_dist)) * 0.1
 
     reach_goal_reward = torch.where(goal_reached == 1, 10, 0).float()
 
     total_reward = reach_goal_reward + dense_dist_reward
 
-    return total_reward,  reach_goal_reward
-
-
-
-
+    return total_reward, reach_goal_reward

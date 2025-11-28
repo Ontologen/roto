@@ -6,9 +6,8 @@ import gymnasium as gym
 import os
 
 # from . import agents, deformable_lift, franka, find, occluded_lift, bowl_lift, shadow_lift, trick_lift  # ik_abs_env_cfg, ik_rel_env_cfg, joint_pos_env_cfg
+from . import find  # , grasp, control, pick_and_place
 from . import agents
-from . import find #, grasp, control, pick_and_place
-
 
 ##
 # Register Gym environments.
@@ -20,7 +19,6 @@ from . import find #, grasp, control, pick_and_place
 print("Registering franka environments")
 
 agents_dir = os.path.dirname(agents.__file__)
-
 
 
 p_file = "rl_only_p.yaml"

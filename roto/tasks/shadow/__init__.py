@@ -7,10 +7,10 @@
 Shadow Hand environment.
 """
 
-import os
 import gymnasium as gym
+import os
 
-from . import agents, bounce, baoding
+from . import agents, baoding, bounce
 
 ##
 # Register Gym environments.
@@ -60,7 +60,7 @@ gym.register(
         "full_recon": bounce_full_recon,
         "forward_dynamics": bounce_forward_dynamics,
         "tac_dynamics": bounce_tactile_dynamics,
-        "memory": bounce_forward_dynamics
+        "memory": bounce_forward_dynamics,
     },
 )
 
@@ -77,7 +77,6 @@ gym.register(
         "full_recon": baoding_full_recon,
         "forward_dynamics": baoding_forward_dynamics,
         "tac_dynamics": baoding_tactile_dynamics,
-        "memory": baoding_forward_dynamics
-    }
+        "memory": baoding_forward_dynamics,
+    },
 )
-

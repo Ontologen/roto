@@ -14,13 +14,11 @@ including simulation setup, sensors, and reward utilities.
 
 from __future__ import annotations
 
-import gymnasium as gym
 import numpy as np
 import torch
-from collections.abc import Sequence
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, ArticulationCfg, RigidObject, RigidObjectCfg
+from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.sensors import (
     ContactSensor,
     ContactSensorCfg,
@@ -28,23 +26,19 @@ from isaaclab.sensors import (
     FrameTransformerCfg,
     OffsetCfg,
 )
-from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import (
-    quat_conjugate,
     quat_from_angle_axis,
     quat_mul,
-    sample_uniform,
 )
+
+from roto.tasks.roto_env import RotoEnv, RotoEnvCfg
 
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 
 from roto.assets.franka import FRANKA_PANDA_CFG  # isort: skip
 
-from roto.tasks.roto_env import RotoEnv, RotoEnvCfg
 
 
 @configclass
@@ -53,7 +47,8 @@ class FrankaEnvCfg(RotoEnvCfg):
     Configuration class for Franka RL environments.
     Defines simulation parameters, robot configs, sensors, and scene setup.
     """
-    num_actions = 9       # Number of actions for Franka Panda
+
+    num_actions = 9  # Number of actions for Franka Panda
     action_space = num_actions
 
     # Robot configuration
@@ -161,13 +156,13 @@ class FrankaEnv(RotoEnv):
             **kwargs: Additional arguments.
         """
         super().__init__(cfg, render_mode, **kwargs)
-       
+
         # End-effector and tactile state
         self.aperture = torch.zeros((self.num_envs,), device=self.device)
         self.tactile = torch.zeros((self.num_envs, 2), device=self.device)
         self.ee_pos = torch.zeros((self.num_envs, 3), device=self.device)
         self.ee_rot = torch.zeros((self.num_envs, 4), device=self.device)
-      
+
         # Logging and counters for diagnostics
         self.extras["log"] = {
             "tactile": None,
@@ -238,7 +233,7 @@ class FrankaEnv(RotoEnv):
                 self.ee_rot,
                 self.actions,
                 control_errors,
-                self.episode_length_buf.unsqueeze(1)
+                self.episode_length_buf.unsqueeze(1),
             ),
             dim=-1,
         )
@@ -284,7 +279,7 @@ class FrankaEnv(RotoEnv):
         if env_ids is None:
             env_ids = self.robot._ALL_INDICES
         super()._compute_intermediate_values(env_ids)
-        
+
         # Update end-effector pose
         self.ee_pos[env_ids] = self.ee_frame.data.target_pos_source[..., 0, :][env_ids]
         self.ee_rot[env_ids] = self.ee_frame.data.target_quat_source[..., 0, :][env_ids]
@@ -311,6 +306,3 @@ def randomize_rotation(rand0, rand1, x_unit_tensor, y_unit_tensor):
     return quat_mul(
         quat_from_angle_axis(rand0 * np.pi, x_unit_tensor), quat_from_angle_axis(rand1 * np.pi, y_unit_tensor)
     )
-
-
-

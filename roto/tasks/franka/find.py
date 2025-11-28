@@ -11,11 +11,10 @@ for multiple difficulty thresholds.
 
 import torch
 from collections.abc import Sequence
-import os
 
-from roto.tasks.franka.franka import FrankaEnv, FrankaEnvCfg
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObjectCfg, RigidObject
+from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
 from isaaclab.sim.schemas.schemas_cfg import CollisionPropertiesCfg, RigidBodyPropertiesCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.math import (
@@ -23,7 +22,9 @@ from isaaclab.utils.math import (
     quat_mul,
     sample_uniform,
 )
-from isaaclab.markers import VisualizationMarkersCfg, VisualizationMarkers
+
+from roto.tasks.franka.franka import FrankaEnv, FrankaEnvCfg
+
 
 @configclass
 class FindEnvCfg(FrankaEnvCfg):
@@ -31,6 +32,7 @@ class FindEnvCfg(FrankaEnvCfg):
     Configuration for the Franka 'Find' RL task.
     Sets object and workspace properties, including randomization and visualization.
     """
+
     episode_length_s = 5.0  # Episode length in seconds
     act_moving_average = 0.0  # Action smoothing factor
     default_object_pos = [0.5, 0, 0.03]
@@ -45,7 +47,7 @@ class FindEnvCfg(FrankaEnvCfg):
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.541, 0.808, 0)),
             rigid_props=RigidBodyPropertiesCfg(kinematic_enabled=True),
             mass_props=sim_utils.MassPropertiesCfg(mass=100),
-            collision_props=CollisionPropertiesCfg(collision_enabled=True)
+            collision_props=CollisionPropertiesCfg(collision_enabled=True),
         ),
     )
 
@@ -54,17 +56,19 @@ class FindEnvCfg(FrankaEnvCfg):
         prim_path="/Visuals/workspace",
         markers={
             "workspace": sim_utils.CuboidCfg(
-                size=(2*reset_object_position_noise, 2*reset_object_position_noise, 0.01),
-                visual_material=sim_utils.PreviewSurfaceCfg(opacity=0.1, diffuse_color=(0.541, 0.808, 0))
+                size=(2 * reset_object_position_noise, 2 * reset_object_position_noise, 0.01),
+                visual_material=sim_utils.PreviewSurfaceCfg(opacity=0.1, diffuse_color=(0.541, 0.808, 0)),
             )
         },
     )
+
 
 class FindEnv(FrankaEnv):
     """
     RL environment for the Franka Panda robot to find and reach an object.
     Tracks time to find the object at multiple difficulty thresholds.
     """
+
     cfg: FindEnvCfg
 
     def __init__(self, cfg: FindEnvCfg, render_mode: str | None = None, **kwargs):
@@ -88,24 +92,28 @@ class FindEnv(FrankaEnv):
         self.object_found_easy = torch.zeros((self.num_envs,), dtype=torch.float, device=self.device)
         self.object_found_med = torch.zeros((self.num_envs,), dtype=torch.float, device=self.device)
         self.object_found_hard = torch.zeros((self.num_envs,), dtype=torch.float, device=self.device)
-        
+
         # Logging and counters for diagnostics
-        self.extras["log"].update({
-            "dist_reward": None,
-            "object_ee_distance": None,
-            "contact_reward": None,
-            "height_bonus": None,
-        })
-        self.extras["counters"].update({
-            "timesteps_to_find_object_easy": None,
-            "timesteps_to_find_object_med": None,
-            "timesteps_to_find_object_hard": None,
-            "object_found_easy": None,
-            "object_found_med": None,
-            "object_found_hard": None,
-            "success": None,
-            "failure": None,
-        })
+        self.extras["log"].update(
+            {
+                "dist_reward": None,
+                "object_ee_distance": None,
+                "contact_reward": None,
+                "height_bonus": None,
+            }
+        )
+        self.extras["counters"].update(
+            {
+                "timesteps_to_find_object_easy": None,
+                "timesteps_to_find_object_med": None,
+                "timesteps_to_find_object_hard": None,
+                "object_found_easy": None,
+                "object_found_med": None,
+                "object_found_hard": None,
+                "success": None,
+                "failure": None,
+            }
+        )
 
     def _setup_scene(self):
         """
@@ -165,25 +173,25 @@ class FindEnv(FrankaEnv):
 
         # Update found flags and counters
         # this is triggered once
-        self.object_found_easy = torch.logical_or(self.object_ee_euclidean_distance < easy_threshold, self.object_found_easy)
-        self.object_found_med = torch.logical_or(self.object_ee_euclidean_distance < med_threshold, self.object_found_med)
-        self.object_found_hard = torch.logical_or(self.object_ee_euclidean_distance < hard_threshold, self.object_found_hard)
+        self.object_found_easy = torch.logical_or(
+            self.object_ee_euclidean_distance < easy_threshold, self.object_found_easy
+        )
+        self.object_found_med = torch.logical_or(
+            self.object_ee_euclidean_distance < med_threshold, self.object_found_med
+        )
+        self.object_found_hard = torch.logical_or(
+            self.object_ee_euclidean_distance < hard_threshold, self.object_found_hard
+        )
 
         self.timesteps_to_find_object_easy = torch.where(
-            self.object_found_easy,
-            self.timesteps_to_find_object_easy,
-            self.timesteps_to_find_object_easy + 1
+            self.object_found_easy, self.timesteps_to_find_object_easy, self.timesteps_to_find_object_easy + 1
         )
         self.timesteps_to_find_object_med = torch.where(
-            self.object_found_med,
-            self.timesteps_to_find_object_med,
-            self.timesteps_to_find_object_med + 1
+            self.object_found_med, self.timesteps_to_find_object_med, self.timesteps_to_find_object_med + 1
         )
         self.timesteps_to_find_object_hard = torch.where(
-            self.object_found_hard,
-            self.timesteps_to_find_object_hard,
-            self.timesteps_to_find_object_hard + 1
-        )        
+            self.object_found_hard, self.timesteps_to_find_object_hard, self.timesteps_to_find_object_hard + 1
+        )
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         """
@@ -252,7 +260,7 @@ class FindEnv(FrankaEnv):
             }
             self.extras["log"].update(tactile_dict)
         return rewards
-    
+
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Determine episode termination and timeout.
@@ -265,6 +273,7 @@ class FindEnv(FrankaEnv):
         time_out = self.episode_length_buf >= self.max_episode_length - 1
 
         return termination, time_out
+
 
 @torch.jit.script
 def distance_reward(object_ee_distance, std: float = 0.1):
@@ -295,8 +304,9 @@ def compute_rewards(object_ee_distance: torch.Tensor):
     """
     std = 0.03
     r_dist = distance_reward(object_ee_distance, std=std)
-    rewards = r_dist 
-    return rewards 
+    rewards = r_dist
+    return rewards
+
 
 @torch.jit.script
 def rotation_distance(object_rot, target_rot):
