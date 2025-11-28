@@ -1,3 +1,5 @@
+# Shadow Bounce config: rl_only_pt
+
 agent:
   rollouts: 16
   learning_epochs: 17
@@ -13,9 +15,8 @@ agent:
   kl_threshold: 0
 
 experiment:
-  experiment_name: "shadow_bounce_rl_only_pt_seeds"
+  experiment_name: shadow_bounce_rl_only_pt_seeds
   wandb: 1
-  wandb_kwargs: {
-    "group": "shadow_bounce_rl_only_pt_seeds",
-    "name": "1",
-  }
+  wandb_kwargs:
+    group: shadow_bounce_rl_only_pt_seeds
+    name: '1'

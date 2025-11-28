@@ -1,3 +1,5 @@
+# Shadow Bounce config: forward_dynamics
+
 agent:
   rollouts: 16
   learning_epochs: 10
@@ -13,8 +15,8 @@ agent:
   kl_threshold: 0
 
 ssl_task:
-  type: "forward_dynamics"
-  tactile_only: False
+  type: forward_dynamics
+  tactile_only: false
   loss_weight: 0.002120698505861521
   learning_rate: 1.5325373023586473e-05
   n_rollouts: 1
@@ -22,9 +24,8 @@ ssl_task:
   learning_epochs_ratio: 1.0
 
 experiment:
-  experiment_name: "forward_dynamics"
+  experiment_name: forward_dynamics
   wandb: 1
-  wandb_kwargs: {
-    "group": "forward_dynamics",
-    "name": "null",
-  }
+  wandb_kwargs:
+    group: forward_dynamics
+    name: 'null'

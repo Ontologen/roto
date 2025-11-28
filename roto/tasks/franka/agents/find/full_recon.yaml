@@ -1,3 +1,5 @@
+# Franka Find config: full_recon
+
 agent:
   learning_rate: 1.5176600549117507e-06
   rollouts: 16
@@ -13,19 +15,18 @@ agent:
   kl_threshold: 0
 
 ssl_task:
-  type: "reconstruction"
+  type: reconstruction
   n_rollouts: 1
-  tactile_only: False
+  tactile_only: false
   loss_weight: 0.4744668526525511
   learning_rate: 0.0005343910761338679
   learning_epochs_ratio: 1
 
 experiment:
-  experiment_name: "full_recon"
+  experiment_name: full_recon
   save_checkpoints: 1
   tb_log: 1
   wandb: 1
-  wandb_kwargs: {
-    "group": "full_recon",
-    "name": "1",
-  }
+  wandb_kwargs:
+    group: full_recon
+    name: '1'

@@ -1,3 +1,5 @@
+# Franka Find config: forward_dynamics
+
 agent:
   rollouts: 64
   learning_epochs: 8
@@ -13,19 +15,18 @@ agent:
   grad_norm_clip: 1.0
 
 ssl_task:
-  type: "forward_dynamics"
+  type: forward_dynamics
   n_rollouts: 1
-  tactile_only: False
+  tactile_only: false
   loss_weight: 0.0024563011888180755
   learning_rate: 0.00015653936173824111
   seq_length: 4
 
 experiment:
-  experiment_name: "forward_dynamics"
+  experiment_name: forward_dynamics
   save_checkpoints: 1
   tb_log: 1
   wandb: 1
-  wandb_kwargs: {
-    "group": "forward_dynamics",
-    "name": "test",
-  }
+  wandb_kwargs:
+    group: forward_dynamics
+    name: test

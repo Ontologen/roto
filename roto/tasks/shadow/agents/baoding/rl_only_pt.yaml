@@ -1,3 +1,5 @@
+# Shadow Baoding config: rl_only_pt
+
 agent:
   rollouts: 32
   learning_epochs: 17
@@ -13,9 +15,8 @@ agent:
   kl_threshold: 0
 
 experiment:
-  experiment_name: "rl_only_pt"
+  experiment_name: rl_only_pt
   wandb: 1
-  wandb_kwargs: {
-    "group": "rl_only_pt",
-    "name": "1",
-  }
+  wandb_kwargs:
+    group: rl_only_pt
+    name: '1'

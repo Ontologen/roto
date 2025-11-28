@@ -1,3 +1,5 @@
+# Franka Find config: rl_only_pt
+
 agent:
   rollouts: 32
   learning_epochs: 20
@@ -13,11 +15,10 @@ agent:
   grad_norm_clip: 1.0
 
 experiment:
-  experiment_name: "rl_only_pt"
+  experiment_name: rl_only_pt
   save_checkpoints: 1
   tb_log: 1
   wandb: 0
-  wandb_kwargs: {
-    "group": "rl_only_pt",
-    "name": "1",
-  }
+  wandb_kwargs:
+    group: rl_only_pt
+    name: '1'
