@@ -75,7 +75,6 @@ gym.register(
         "full_recon": baoding_full_recon,
         "forward_dynamics": baoding_forward_dynamics,
         "tac_dynamics": baoding_tactile_dynamics,
-        "tac_dynamics": baoding_tactile_dynamics,
     }
 )
 ```

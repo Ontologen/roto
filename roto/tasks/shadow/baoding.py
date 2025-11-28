@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import torch
 
 import isaaclab.sim as sim_utils
@@ -17,56 +19,34 @@ from isaaclab.utils.math import sample_uniform
 
 from roto.tasks.shadow.shadow import ShadowEnv, ShadowEnvCfg
 
-"""
-Repose environment
-
-every child env should implement own
-- _get_rewards
-- _get_dones
-- compute_rewards
-
-
-"""
-
-
 @configclass
 class BaodingCfg(ShadowEnvCfg):
+    """Configuration for the baoding environment running on the Shadow hand."""
 
     act_moving_average = 1
 
     # in-hand ball
-    ball_mass_g = 55  # 55
+    ball_mass_g = 55
     ball_mass_kg = 0.001 * ball_mass_g
     ball_diameter_inches = 1.5
     ball_radius_m = (ball_diameter_inches / 2) * 2.54 / 100
     ball_reset_height = 0.55
     ball_diameter_m = ball_radius_m * 2
-    target_offset = ball_diameter_m / 1.73205080757
-    target_offset += 0.001
+    target_offset = ball_diameter_m / 1.73205080757 + 0.001
 
     ball_dist_terminate = 0.15
     success_tolerance = 0.01
 
-    # target_offset = ball_diameter_m / 1.41421356237
     palm_target_x = -0.03
     palm_target_y = -0.38
-    palm_target_z = 0.46  # + 0.01
+    palm_target_z = 0.46
     diagonal_target_x = palm_target_x + target_offset
     diagonal_target_y = palm_target_y + target_offset
-    # diagonal_target_z = palm_target_z # + target_offset
     diagonal_target_z = palm_target_z + target_offset
-
-    brat = (0.5411764705882353, 0.807843137254902, 0)
-    brat_pink = (0.7294117647058823, 0.3176470588235294, 0.7137254901960784)
-
-    colour_1 = (0.80392, 0.7058, 0.858823)
-    colour_2 = (0.741176, 0.878, 0.9960784)
-    brat_pink = (0.3294117647058823, 0.3176470588235294, 0.9137254901960784)
 
     colour_1 = (0.4, 0.9882352941176471, 0.011764705882352941)
     colour_2 = (0.0, 1.0, 1.0)
 
-    # BALL 1 IS GREEN BECAUSE GREEN IS FIRST IN RGB
     ball_1_cfg: RigidObjectCfg = RigidObjectCfg(
         prim_path="/World/envs/env_.*/ball1",
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.01, -0.37, ball_reset_height), rot=(1.0, 0.0, 0.0, 0.0)),
@@ -131,7 +111,7 @@ class BaodingEnv(ShadowEnv):
     cfg: BaodingCfg
 
     def __init__(self, cfg: BaodingCfg, render_mode: str | None = None, **kwargs):
-
+        """Shadow-hand baoding task with two tracked goal locations."""
         super().__init__(cfg, render_mode, **kwargs)
 
         # these buffers are populated in the reward computation with 1 if the goal has been reached
@@ -162,21 +142,27 @@ class BaodingEnv(ShadowEnv):
         self.total_rotations = torch.zeros((self.num_envs,), dtype=self.dtype, device=self.device)
         self.num_rotations = torch.zeros((self.num_envs,), dtype=torch.int, device=self.device)
 
-        target_1 = (self.cfg.palm_target_x, self.cfg.palm_target_y, self.cfg.palm_target_z)
-        target_2 = (self.cfg.diagonal_target_x, self.cfg.diagonal_target_y, self.cfg.diagonal_target_z)
-        self.goal_pos1 = torch.zeros((self.num_envs, 3), dtype=torch.float, device=self.device)
-        self.goal_pos1[:, :] = torch.tensor(target_1, device=self.device)
-        self.goal_pos2 = torch.zeros((self.num_envs, 3), dtype=torch.float, device=self.device)
-        self.goal_pos2[:, :] = torch.tensor(target_2, device=self.device)
+        target_1 = torch.tensor(
+            (self.cfg.palm_target_x, self.cfg.palm_target_y, self.cfg.palm_target_z),
+            dtype=torch.float,
+            device=self.device,
+        )
+        target_2 = torch.tensor(
+            (self.cfg.diagonal_target_x, self.cfg.diagonal_target_y, self.cfg.diagonal_target_z),
+            dtype=torch.float,
+            device=self.device,
+        )
+        self.goal_pos1 = target_1.repeat(self.num_envs, 1)
+        self.goal_pos2 = target_2.repeat(self.num_envs, 1)
         self.goal_rot = torch.zeros((self.num_envs, 4), dtype=torch.float, device=self.device)
         self.target1.visualize(self.goal_pos1 + self.scene.env_origins, self.goal_rot)
         self.target2.visualize(self.goal_pos2 + self.scene.env_origins, self.goal_rot)
 
         self.ball_goal_idx = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        self.ball_2_goal_idx = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
         self.update_goal_pos()
 
     def _setup_scene(self):
+        """Register balls and visualization markers."""
         super()._setup_scene()
         # add hand, in-hand ball, and goal ball
         self.ball_1 = RigidObject(self.cfg.ball_1_cfg)
@@ -184,27 +170,11 @@ class BaodingEnv(ShadowEnv):
         self.scene.rigid_objects["ball_1"] = self.ball_1
         self.scene.rigid_objects["ball_2"] = self.ball_2
 
-        colour_1 = (0.4, 0.9882352941176471, 0.011764705882352941)
-        colour_2 = (0.0, 1.0, 1.0)
-        brat_pink = (0.9882352941176471, 0.011764705882352941, 0.7098039215686275)
-
-        # light_cfg = sim_utils.DomeLightCfg(intensity=100.0, color=(0.75, 0.75, 0.75))
-        # light_cfg.func("/World/Light", light_cfg)
-        # light_cfg_1 = sim_utils.SphereLightCfg(intensity=10000.0, color=brat_pink)
-        # light_cfg_1.func("/World/ds", light_cfg_1, translation=(1, 0, 1))
-        # light_cfg_2 = sim_utils.SphereLightCfg(intensity=10000.0, color=colour_2)
-        # light_cfg_2.func("/World/disk", light_cfg_2, translation=(-1, 0, 1))
-
-        # viz
         self.target1 = VisualizationMarkers(self.cfg.target1_cfg)
         self.target2 = VisualizationMarkers(self.cfg.target2_cfg)
 
-    def _get_gt(self):
-
-        # self.body_info[:, :, 0:3] = self.robot.link_pos
-        # self.body_info[:, :, 3:7] = self.robot.link_rot
-        # self.body_info[:, :, 7:10] = self.robot.link_linvel
-        # self.body_info[:, :, 10:13] = self.robot.link_angvel
+    def _get_gt(self) -> torch.Tensor:
+        """Return a concatenated tensor of ball poses and velocities."""
 
         gt = torch.cat(
             (
@@ -223,6 +193,7 @@ class BaodingEnv(ShadowEnv):
         return gt
 
     def _compute_intermediate_values(self, env_ids=None):
+        """Update ball distances, velocities and helper buffers."""
         if env_ids is None:
             env_ids = self.robot._ALL_INDICES
         super()._compute_intermediate_values(env_ids)
@@ -261,9 +232,6 @@ class BaodingEnv(ShadowEnv):
         self.extras["log"] = {
             "success_reward": (reach_goal_reward),
             "sum_forces": (torch.sum(self.tactile, dim=1)),
-            # "tactile_reward": (tactile_reward),
-            # "transition_reward": (transition_reward),
-            # "fall_penalty": (fall_penalty),
             "ball_1_vel": (self.ball_1_linvel),
             "ball_2_vel": (self.ball_2_linvel),
             "ball_dist": (self.ball_dist),
@@ -299,7 +267,8 @@ class BaodingEnv(ShadowEnv):
 
         self.num_rotations[env_ids] = 0
 
-    def _reset_object(self, env_ids):
+    def _reset_object(self, env_ids: Sequence[int]) -> None:
+        """Reset both balls close to their default pose with a small position noise."""
         # reset ball
         ball_1_default_state = self.ball_1.data.default_root_state.clone()[env_ids]
         ball_2_default_state = self.ball_2.data.default_root_state.clone()[env_ids]
@@ -335,20 +304,13 @@ class BaodingEnv(ShadowEnv):
         self.reset_goal_2_buf[reached_goal_ids] = 0
 
     def update_goal_pos(self):
-        """
-        Update goal pos based on idx
-        ball_goal_idx = 0
-
-
-        """
-        # For ball 1: use goal_pos1 when ball_1_goal_idx is False (0), use goal_pos2 when True (1)
+        """Toggle the active goal for each ball based on `ball_goal_idx`."""
         self.ball_1_goal_pos = torch.where(
             self.ball_goal_idx.unsqueeze(-1),  # Expand to match dimensions [num_envs, 1]
             self.goal_pos2,  # When True
             self.goal_pos1,  # When False
         )
 
-        # For ball 2: use goal_pos1 when ball_2_goal_idx is False (0), use goal_pos2 when True (1)
         self.ball_2_goal_pos = torch.where(
             self.ball_goal_idx.unsqueeze(-1),  # Expand to match dimensions [num_envs, 1]
             self.goal_pos1,  # When True

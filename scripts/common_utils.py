@@ -1,4 +1,4 @@
-"""Rest everything follows."""
+"""Utility helpers shared between the RoTO training / inference scripts."""
 
 import gymnasium as gym
 import numpy as np
@@ -25,50 +25,41 @@ LOG_PATH = os.getcwd()
 
 
 def make_aux(env, rl_memory, encoder, value, value_preprocessor, env_cfg, agent_cfg, writer):
+    """Instantiate the optional self-supervised auxiliary task."""
+    ssl_cfg = agent_cfg.get("ssl_task")
+    if not ssl_cfg:
+        return None
 
-    # configure auxiliary task
     rl_rollout = agent_cfg["agent"]["rollouts"]
-    if "ssl_task" in agent_cfg.keys():
+    task_type = ssl_cfg.get("type")
+    task_map = {
+        "reconstruction": Reconstruction,
+        "forward_dynamics": ForwardDynamics,
+    }
 
-        match agent_cfg["ssl_task"]["type"]:
-            case "reconstruction":
-                ssl_task = Reconstruction(
-                    agent_cfg["ssl_task"],
-                    rl_rollout,
-                    rl_memory,
-                    encoder,
-                    value,
-                    value_preprocessor,
-                    env,
-                    env_cfg,
-                    writer,
-                )
-            case "forward_dynamics":
-                ssl_task = ForwardDynamics(
-                    agent_cfg["ssl_task"],
-                    rl_rollout,
-                    rl_memory,
-                    encoder,
-                    value,
-                    value_preprocessor,
-                    env,
-                    env_cfg,
-                    writer,
-                )
-            case _:  # default case
-                print("No auxiliary task")
-                ssl_task = None
+    task_cls = task_map.get(task_type)
+    if task_cls is None:
+        print("No auxiliary task")
+        return None
 
-    else:
-        ssl_task = None
-    return ssl_task
+    return task_cls(
+        ssl_cfg,
+        rl_rollout,
+        rl_memory,
+        encoder,
+        value,
+        value_preprocessor,
+        env,
+        env_cfg,
+        writer,
+    )
 
 
 def make_env(env_cfg, writer, args_cli, obs_stack=1):
-
+    """Create and wrap the Isaac Lab environment with gym + writer utilities."""
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
-    obs, reward = env.reset()
+    obs, _ = env.reset()
 
     gym_dict = {}
     for k, v in obs["policy"].items():
@@ -105,6 +96,7 @@ def make_env(env_cfg, writer, args_cli, obs_stack=1):
 
 
 def make_models(env, env_cfg, agent_cfg, dtype):
+    """Build encoder, policy, and value networks."""
     observation_space = env.observation_space["policy"]
     action_space = env.action_space
 
@@ -140,6 +132,7 @@ def make_models(env, env_cfg, agent_cfg, dtype):
 
 
 def make_memory(env, env_cfg, size, num_envs):
+    """Allocate rollout storage for PPO."""
     memory = Memory(
         memory_size=size,
         num_envs=num_envs,
@@ -150,7 +143,7 @@ def make_memory(env, env_cfg, size, num_envs):
 
 
 def make_trainer(env, agent, agent_cfg, ssl_task=None, writer=None):
-
+    """Return the high-level Trainer wrapper."""
     num_timesteps_M = agent_cfg["trainer"]["max_global_timesteps_M"]
     num_eval_envs = agent_cfg["trainer"]["num_eval_envs"]
     trainer = Trainer(
@@ -165,7 +158,7 @@ def make_trainer(env, agent, agent_cfg, ssl_task=None, writer=None):
 
 
 def update_env_cfg(args_cli, env_cfg, agent_cfg):
-
+    """Sync Isaac Lab config with CLI + agent overrides."""
     env_cfg.seed = agent_cfg["seed"]
     env_cfg.debug = agent_cfg["experiment"]["debug"]
 
@@ -184,7 +177,7 @@ def update_env_cfg(args_cli, env_cfg, agent_cfg):
 
 
 def set_seed(seed: int = 42) -> None:
-
+    """Apply the same seed across numpy/torch/random."""
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
@@ -196,7 +189,7 @@ def set_seed(seed: int = 42) -> None:
 
 # @hydra_task_config(args_cli.task, "default_cfg")
 def train_one_seed(args_cli, env, agent_cfg=None, env_cfg=None, writer=None, seed=None):
-    """Train with skrl agent."""
+    """Train the PPO agent for a single seed configuration."""
 
     dtype = torch.float32
 

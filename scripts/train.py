@@ -44,8 +44,6 @@ sys.argv = [sys.argv[0]] + hydra_args
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-import torch
-
 import isaaclab_tasks  # noqa: F401
 from common_utils import LOG_PATH, make_env, train_one_seed, update_env_cfg
 from isaaclab.utils import update_dict
@@ -54,33 +52,31 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 from isaaclab_rl.tools.writer import Writer
 
-if __name__ == "__main__":
 
-    # parse configuration
+def main() -> None:
+    """Train a RoTO policy using the selected Isaac Lab task and agent config."""
     env_cfg, agent_cfg = register_task_to_hydra(args_cli.task, "default_cfg")
     specialised_cfg = load_cfg_from_registry(args_cli.task, args_cli.agent_cfg)
     agent_cfg = update_dict(agent_cfg, specialised_cfg)
 
-    dtype = torch.float32
-
     seed = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
+
     agent_cfg["log_path"] = LOG_PATH
     args_cli.video = agent_cfg["experiment"]["upload_videos"]
     agent_cfg["experiment"]["video_dir"] = args_cli.video_dir
 
-    # Update the environment config
     writer = Writer(agent_cfg)
     env_cfg = update_env_cfg(args_cli, env_cfg, agent_cfg)
     env = make_env(env_cfg, writer, args_cli, agent_cfg["observations"]["obs_stack"])
     train_one_seed(args_cli, env, agent_cfg=agent_cfg, env_cfg=env_cfg, writer=writer, seed=seed)
 
+
+if __name__ == "__main__":
     try:
-        # run the main function
-        train_one_seed(args_cli)
+        main()
     except Exception as err:
         print("ERROR DURING TRAINING", err)
         raise
     finally:
-        # close sim app
         print("CLOSING")
         simulation_app.close()
