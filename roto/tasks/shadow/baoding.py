@@ -213,8 +213,7 @@ class BaodingEnv(ShadowEnv):
         self.ball_dist = torch.norm(self.balls_center_vector, dim=1)
 
     def _get_rewards(self) -> torch.Tensor:
-
-        # Find out which envs hit the goal and update successes count
+        """Dense distance reward plus sparse success bonus."""
         self.reset_goal_1_buf[self.ball_1_goal_dist <= self.cfg.success_tolerance] = True
         self.reset_goal_2_buf[self.ball_2_goal_dist <= self.cfg.success_tolerance] = True
         goal_reached = (self.reset_goal_1_buf & self.reset_goal_2_buf).float()
@@ -245,9 +244,9 @@ class BaodingEnv(ShadowEnv):
         return total_reward
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """Reset when balls drift apart or the episode times out."""
         self._compute_intermediate_values()
 
-        # reset when balls too far away
         out_of_reach = self.ball_dist >= self.cfg.ball_dist_terminate
 
         time_out = self.episode_length_buf >= self.max_episode_length - 1
@@ -255,14 +254,13 @@ class BaodingEnv(ShadowEnv):
         return out_of_reach, time_out
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
+        """Reset articulation state plus both baoding balls."""
 
         if env_ids is None:
             env_ids = self.robot._ALL_INDICES
 
-        # resets articulation and rigid body attributes
         super()._reset_idx(env_ids)
 
-        # reset object
         self._reset_object(env_ids)
 
         self.num_rotations[env_ids] = 0
@@ -290,6 +288,7 @@ class BaodingEnv(ShadowEnv):
         self.ball_2.write_root_velocity_to_sim(ball_2_default_state[:, 7:], env_ids)
 
     def _reset_target_pose(self, reached_goal_ids):
+        """Swap the active target for envs that completed a rotation."""
 
         self.ball_goal_idx[reached_goal_ids] = ~self.ball_goal_idx[reached_goal_ids]
         self.update_goal_pos()
@@ -320,6 +319,7 @@ class BaodingEnv(ShadowEnv):
 
 @torch.jit.script
 def distance_reward(object_ee_distance, std: float = 0.1):
+    """Smooth distance shaping used for both balls."""
     r_reach = 1 - torch.tanh(object_ee_distance / std)
     return r_reach
 
@@ -330,7 +330,7 @@ def compute_rewards(
     ball_1_goal_dist: torch.Tensor,
     ball_2_goal_dist: torch.Tensor,
 ):
-
+    """Combine dense distance shaping with a sparse success bonus."""
     dense_dist_reward = (distance_reward(ball_1_goal_dist) + distance_reward(ball_2_goal_dist)) * 0.1
 
     reach_goal_reward = torch.where(goal_reached == 1, 10, 0).float()

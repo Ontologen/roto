@@ -4,11 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
+"""Shadow-hand base environment utilities shared across RoTO tasks."""
+
 from __future__ import annotations
+
+from collections.abc import Sequence
 
 import numpy as np
 import torch
-from collections.abc import Sequence
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import Articulation, ArticulationCfg
@@ -28,6 +31,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 
 @configclass
 class ShadowEnvCfg(RotoEnvCfg):
+    """Default configuration for the Shadow hand."""
 
     eye = (4, -4, 2.1)
     lookat = (2, -2, 0.5)
@@ -35,17 +39,13 @@ class ShadowEnvCfg(RotoEnvCfg):
 
     scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4096, env_spacing=0.6, replicate_physics=True)
 
-    episode_length_s = 10.0  # Episode length in seconds
-
-    # env
+    episode_length_s = 10.0
     num_actions = 20
     action_space = num_actions
 
-    # reset
-    reset_joint_pos_noise = 0.2  # range of dof pos at reset
-    reset_joint_vel_noise = 0.0  # range of dof vel at reset
+    reset_joint_pos_noise = 0.2
+    reset_joint_vel_noise = 0.0
 
-    # robot
     hand_height = 0.5
     robot_cfg: ArticulationCfg = SHADOW_HAND_CFG.replace(prim_path="/World/envs/env_.*/Robot").replace(
         init_state=ArticulationCfg.InitialStateCfg(
@@ -85,8 +85,6 @@ class ShadowEnvCfg(RotoEnvCfg):
         "robot0_thdistal",
     ]
 
-    # We set the update period to 0 to update the sensor at the same frequency as the simulation
-    # contact sensors are called 'left_contact_sensor' and 'right_contact_sensor'
     marker_cfg = FRAME_MARKER_CFG.copy()
     marker_cfg.markers["frame"].scale = (0.05, 0.05, 0.05)
     marker_cfg.prim_path = "/Visuals/ContactCfg"
@@ -118,6 +116,7 @@ class ShadowEnvCfg(RotoEnvCfg):
 
 
 class ShadowEnv(RotoEnv):
+    """Shadow-hand base env providing tactile + proprio pipelines."""
     cfg: ShadowEnvCfg
 
     def __init__(self, cfg: ShadowEnvCfg, render_mode: str | None = None, **kwargs):
@@ -152,15 +151,11 @@ class ShadowEnv(RotoEnv):
         }
 
     def _setup_scene(self):
-        # add hand, in-hand object, and goal object
+        """Register the Shadow hand, contact sensors, and lighting."""
         self.robot = Articulation(self.cfg.robot_cfg)
-        # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        # clone and replicate (no need to filter for this environment)
         self.scene.clone_environments(copy_from_source=False)
-        # add articulation to scene - we must register to scene to randomize with EventManager
         self.scene.articulations["robot"] = self.robot
-        # # add lights
 
         colour_1 = (0.4, 0.9882352941176471, 0.011764705882352941)
         brat_pink = (0.9882352941176471, 0.011764705882352941, 0.7098039215686275)
@@ -190,18 +185,12 @@ class ShadowEnv(RotoEnv):
         self.scene.sensors["metacarpal_sensor"] = self.metacarpal_sensor
 
     def _get_proprioception(self):
-
-        control_errors = self.joint_pos_cmd - self.joint_pos
-
+        """Return proprioceptive feature vector (positions, velocities, actions)."""
         prop = torch.cat(
             (
-                # hand (48)
                 self.normalised_joint_pos,
                 self.normalised_joint_vel,
-                # self.joint_accel,
-                # actions (20 = 68)
                 self.actions,
-                # control_errors
             ),
             dim=-1,
         )
@@ -209,8 +198,8 @@ class ShadowEnv(RotoEnv):
         return prop
 
     def _get_tactile(self):
-
-        distal_forces = self.distal_sensor.data.net_forces_w[:].clone()  # .reshape(self.num_envs, 3 * 5)
+        """Return binary tactile activation per finger segment."""
+        distal_forces = self.distal_sensor.data.net_forces_w[:].clone()
         proximal_forces = self.proximal_sensor.data.net_forces_w[:].clone()
         middle_forces = self.middle_sensor.data.net_forces_w[:].clone()
         palm_forces = self.palm_sensor.data.net_forces_w[:].clone()
@@ -242,6 +231,7 @@ class ShadowEnv(RotoEnv):
         return tactile
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
+        """Reset articulation state and optionally randomize joints."""
         if env_ids is None:
             env_ids = self.robot._ALL_INDICES
 
@@ -254,6 +244,7 @@ class ShadowEnv(RotoEnv):
 
 @torch.jit.script
 def randomize_rotation(rand0, rand1, x_unit_tensor, y_unit_tensor):
+    """Return a quaternion composed of rotations around the X and Y axes."""
     return quat_mul(
         quat_from_angle_axis(rand0 * np.pi, x_unit_tensor), quat_from_angle_axis(rand1 * np.pi, y_unit_tensor)
     )
@@ -261,6 +252,6 @@ def randomize_rotation(rand0, rand1, x_unit_tensor, y_unit_tensor):
 
 @torch.jit.script
 def rotation_distance(object_rot, target_rot):
-    # Orientation alignment for the cube in hand and goal cube
+    """Orientation alignment helper between the cube in hand and goal cube."""
     quat_diff = quat_mul(object_rot, quat_conjugate(target_rot))
-    return 2.0 * torch.asin(torch.clamp(torch.norm(quat_diff[:, 1:4], p=2, dim=-1), max=1.0))  # changed quat convention
+    return 2.0 * torch.asin(torch.clamp(torch.norm(quat_diff[:, 1:4], p=2, dim=-1), max=1.0))

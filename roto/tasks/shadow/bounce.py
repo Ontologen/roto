@@ -3,8 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Shadow-hand bounce task"""
 
 from __future__ import annotations
+
+from collections.abc import Sequence
 
 import torch
 
@@ -16,39 +19,21 @@ from isaaclab.utils.math import sample_uniform
 
 from roto.tasks.shadow.shadow import ShadowEnv, ShadowEnvCfg
 
-"""
-Repose environment
-
-every child env should implement own
-- _get_rewards
-- _get_dones
-- compute_rewards
-
-
-"""
-
 
 @configclass
 class BounceCfg(ShadowEnvCfg):
-    episode_length_s = 10.0  # Episode length in seconds
+    """Configuration parameters for the Shadow bounce task."""
 
-    act_moving_average = 1
     fall_height = 0.3
-    reset_position_noise = 0.01  # range of position at reset
+    reset_position_noise = 0.01
     object_y_pos = -0.39
     object_z_pos = 0.6
     default_object_pos = (0.0, object_y_pos, object_z_pos)
     out_of_bounds = 0.2
     min_timesteps_between_contact = 5
 
-    brat = (0.5411764705882353, 0.807843137254902, 0)
-    brat_pink = (0.7294117647058823, 0.3176470588235294, 0.7137254901960784)
-    colour_2 = (0.741176, 0.878, 0.9960784)
+    ball_colour = (0.7294117647058823, 0.3176470588235294, 0.7137254901960784)
 
-    colour_1 = brat
-    colour_2 = brat_pink
-    # in-hand object
-    # based off a stress ball, 70mm diameter and 30g weight
     radius_m = 0.035
     mass_g = 30
     mass_kg = mass_g / 1000
@@ -58,7 +43,7 @@ class BounceCfg(ShadowEnvCfg):
         spawn=sim_utils.SphereCfg(
             radius=radius_m,
             physics_material=sim_utils.RigidBodyMaterialCfg(static_friction=1.0, dynamic_friction=1.0, restitution=0.0),
-            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=colour_2, metallic=0.1),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=ball_colour, metallic=0.1),
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 kinematic_enabled=False,
                 disable_gravity=False,
@@ -74,10 +59,8 @@ class BounceCfg(ShadowEnvCfg):
         ),
     )
 
-    num_gt_observations = 14
-
-
 class BounceEnv(ShadowEnv):
+    """Bounce a sphere using the Shadow hand and binary tactile signals."""
     cfg: BounceCfg
 
     def __init__(self, cfg: BounceCfg, render_mode: str | None = None, **kwargs):
@@ -97,14 +80,14 @@ class BounceEnv(ShadowEnv):
         self.time_without_contact = torch.zeros((self.num_envs,), dtype=torch.int, device=self.device)
 
     def _get_gt(self):
-
+        """Ground-truth features for auxiliary heads/logging."""
         gt = torch.cat(
             (
-                self.object_pos,  # 0,1,2
-                self.object_rot,  # 3,4,5,6
-                self.object_linvel,  # 7,8,9
-                self.object_angvel,  # 10,11,12
-                torch.norm(self.object_linvel, dim=1).unsqueeze(-1),  # 13
+                self.object_pos,
+                self.object_rot,
+                self.object_linvel,
+                self.object_angvel,
+                torch.norm(self.object_linvel, dim=1).unsqueeze(-1),
                 torch.norm(self.object_angvel, dim=1).unsqueeze(-1),
                 self.time_without_contact.unsqueeze(-1),
                 self.waiting_for_contact.unsqueeze(-1),
@@ -114,12 +97,14 @@ class BounceEnv(ShadowEnv):
         return gt
 
     def _setup_scene(self):
+        """Attach the object to the shared scene."""
         super()._setup_scene()
 
         self.object = RigidObject(self.cfg.object_cfg)
         self.scene.rigid_objects["object"] = self.object
 
     def _compute_intermediate_values(self, env_ids=None):
+        """Track object kinematics and bounce counts."""
         if env_ids is None:
             env_ids = self.robot._ALL_INDICES
         super()._compute_intermediate_values(env_ids)
@@ -130,44 +115,33 @@ class BounceEnv(ShadowEnv):
         self.object_linvel[env_ids] = self.object.data.root_lin_vel_w[env_ids]
         self.object_angvel[env_ids] = self.object.data.root_ang_vel_w[env_ids]
 
-        # Check if there was any contact
         prev_contact = (torch.sum(self.last_tactile, dim=1) > 0).int()
         curr_contact = (torch.sum(self.tactile, dim=1) > 0).int()
 
-        # Identify specific transitions
         lost_contact = (prev_contact == 1) & (curr_contact == 0)
         new_contact = (prev_contact == 0) & (curr_contact == 1)
 
-        # Store the current time without contact before updating
         prev_time_without_contact = self.time_without_contact.clone()
 
-        # Update time without contact
         self.time_without_contact = torch.where(
-            curr_contact == 0,  # If no contact now
-            self.time_without_contact + 1,  # Increment counter
-            torch.zeros_like(self.time_without_contact),  # Reset counter if contact
+            curr_contact == 0,
+            self.time_without_contact + 1,
+            torch.zeros_like(self.time_without_contact),
         )
 
-        # Valid transitions are those that happen after minimum time
         valid_new_contact = new_contact & (prev_time_without_contact >= self.cfg.min_timesteps_between_contact)
 
-        # If we're waiting for contact and it happens, count a bounce
         self.new_bounces = (self.waiting_for_contact & valid_new_contact).float()
         self.num_bounces += self.new_bounces
-        #
-        # If we just lost a contact, we start waiting for contact
         self.waiting_for_contact = self.waiting_for_contact | lost_contact
-        # If we have just come into contact, we're no longer waiting for contact
-        # make the new_contact 1s into 0s with ~, and disable the mask!
         self.waiting_for_contact = self.waiting_for_contact & ~valid_new_contact
 
-        # Update transitions count if you still want to track this
         self.num_transitions += (lost_contact | valid_new_contact).float()
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
+        """Terminate when the ball falls or leaves the workspace."""
         self._compute_intermediate_values()
 
-        # reset when cube has fallen
         fall = self.object_pos[:, 2] < self.cfg.fall_height
         out_of_bounds = torch.abs(self.object_pos[:, 1] - self.cfg.object_y_pos) > self.cfg.out_of_bounds
         termination = fall | out_of_bounds
@@ -176,14 +150,13 @@ class BounceEnv(ShadowEnv):
         return termination, time_out
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
+        """Reset articulation and ball state for the selected envs."""
 
         if env_ids is None:
             env_ids = self.robot._ALL_INDICES
 
-        # resets articulation and rigid body attributes
         super()._reset_idx(env_ids)
 
-        # reset object
         self._reset_object(env_ids)
 
         self.num_transitions[env_ids] = 0
@@ -193,6 +166,7 @@ class BounceEnv(ShadowEnv):
         self.time_without_contact[env_ids] = 0
 
     def _reset_object(self, env_ids):
+        """Randomize the ball pose within a small neighbourhood."""
 
         object_default_state = self.object.data.default_root_state.clone()[env_ids]
         pos_noise = sample_uniform(-1.0, 1.0, (len(env_ids), 3), device=self.device)
@@ -205,11 +179,8 @@ class BounceEnv(ShadowEnv):
         self.object.write_root_velocity_to_sim(object_default_state[:, 7:], env_ids)
 
     def _get_rewards(self) -> torch.Tensor:
-
-        (
-            total_reward,
-            bounce_reward,
-        ) = compute_rewards(self.new_bounces, self.time_without_contact)
+        """Reward bounces."""
+        total_reward, bounce_reward = compute_rewards(self.new_bounces)
 
         self.extras["log"] = {
             "object_z_linvel": (self.object_linvel[:, 2].half()),
@@ -218,18 +189,16 @@ class BounceEnv(ShadowEnv):
             "bounce_reward": (bounce_reward).float(),
         }
 
-        # self.extras["counters"] = {
-        #     "num_transitions": (self.num_transitions).float(),
-        #     "time_without_contact": (self.time_without_contact).float(),
-        #     "num_bounces": (self.num_bounces).float(),
-        # }
+        self.extras["counters"] = {
+            "num_bounces": (self.num_bounces).float(),
+        }
 
         return total_reward
 
 
 @torch.jit.script
-def compute_rewards(new_bounces: torch.Tensor, time_without_contact: torch.Tensor):
-
+def compute_rewards(new_bounces: torch.Tensor):
+    """Return dense rewards encouraging stable bounce cadence."""
     bounce_reward = new_bounces * 10
 
     total_reward = bounce_reward

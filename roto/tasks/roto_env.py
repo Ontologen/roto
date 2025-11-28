@@ -6,10 +6,12 @@
 """
 Author: Elle Miller 2025
 
-Shared Franka parent environment for IsaacLab RL tasks.
+Basic robot parent environment for IsaacLab RL tasks. See README.md for more details.
 
-This module provides a configurable RL environment for the Franka Panda robot,
-including simulation setup, sensors, and reward utilities.
+This environment is used to define the basic robot control and observation logic for the RoTO tasks.    
+
+It is a child of `DirectRLEnv`, which is a base environment for Isaac Lab RL tasks.
+
 """
 
 from __future__ import annotations
@@ -29,10 +31,7 @@ from isaaclab.utils.math import (
 
 @configclass
 class RotoEnvCfg(DirectRLEnvCfg):
-    """
-    Configuration class for RoTO RL environments.
-    Defines simulation parameters, robot and object configs, sensors, and scene setup.
-    """
+    """Simulation / scene defaults used by every RoTO task."""
 
     # Physics simulation parameters
     physics_dt = 1 / 120  # Simulation timestep (seconds)
@@ -69,23 +68,12 @@ class RotoEnvCfg(DirectRLEnvCfg):
 
 
 class RotoEnv(DirectRLEnv):
-    """
-    RL environment for the Roto benchmark.
-
-    Handles simulation setup, action application, observation collection, and resets.
-    """
+    """Shared RL base class handling control, observation, and reset logic."""
 
     cfg: RotoEnvCfg
 
     def __init__(self, cfg: RotoEnvCfg, render_mode: str | None = None, **kwargs):
-        """
-        Initialize the Franka RL environment.
-
-        Args:
-            cfg (FrankaEnvCfg): Environment configuration.
-            render_mode (str, optional): Rendering mode.
-            **kwargs: Additional arguments.
-        """
+        """Initialize tensors used by derived robot + task implementations."""
         super().__init__(cfg, render_mode, **kwargs)
         self.obs_stack = getattr(cfg, "obs_stack", 1)
 
@@ -130,15 +118,7 @@ class RotoEnv(DirectRLEnv):
         """Configure Gymnasium observation and action spaces (placeholder)."""
 
     def set_spaces(self, single_obs, obs, single_action, action):
-        """
-        Set observation and action spaces for the environment.
-
-        Args:
-            single_obs: Single observation space.
-            obs: Observation space.
-            single_action: Single action space.
-            action: Action space.
-        """
+        """Set Gymnasium observation + action spaces for downstream wrappers."""
         self.single_observation_space = single_obs
         self.observation_space = obs
         self.single_action_space = single_action
@@ -189,12 +169,7 @@ class RotoEnv(DirectRLEnv):
         return self._get_observations()
 
     def _get_observations(self) -> dict:
-        """
-        Collect observations based on the configured observation list.
-
-        Returns:
-            dict: Dictionary containing policy observations.
-        """
+        """Collect observations according to the requested cfg keys."""
         obs_dict = {}
         for k in self.cfg.obs_list:
             if k == "prop":
@@ -204,7 +179,7 @@ class RotoEnv(DirectRLEnv):
             elif k == "tactile":
                 obs_dict[k] = self._get_tactile()
             else:
-                print("Unknown observations type!")
+                raise ValueError(f"Unknown observation key '{k}'")
 
         obs_dict = {"policy": obs_dict}
         return obs_dict
@@ -239,38 +214,18 @@ class RotoEnv(DirectRLEnv):
         )
         self.normalised_joint_vel[env_ids] = self.joint_vel[env_ids] / 3.0
 
+        # This is the better way to normalise the joint velocities, but not what I did in the paper.
         # self.normalised_joint_vel[env_ids] = unscale(
         #     self.joint_vel[env_ids], -self.robot_joint_vel_limits, self.robot_joint_vel_limits
         # )
 
-
 @torch.jit.script
 def scale(x, lower, upper):
-    """
-    Scale input x from [-1, 1] to [lower, upper].
-
-    Args:
-        x (Tensor): Input tensor.
-        lower (Tensor): Lower bounds.
-        upper (Tensor): Upper bounds.
-
-    Returns:
-        Tensor: Scaled tensor.
-    """
+    """Scale input `x` from [-1, 1] to [lower, upper]."""
     return 0.5 * (x + 1.0) * (upper - lower) + lower
 
 
 @torch.jit.script
 def unscale(x, lower, upper):
-    """
-    Unscale input x from [lower, upper] to [-1, 1].
-
-    Args:
-        x (Tensor): Input tensor.
-        lower (Tensor): Lower bounds.
-        upper (Tensor): Upper bounds.
-
-    Returns:
-        Tensor: Unscaled tensor.
-    """
+    """Unscale input `x` from [lower, upper] to [-1, 1]."""
     return (2.0 * x - upper - lower) / (upper - lower)

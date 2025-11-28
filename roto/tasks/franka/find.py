@@ -73,11 +73,9 @@ class FindEnv(FrankaEnv):
 
     def __init__(self, cfg: FindEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
-        self.cfg = cfg
-
         # Object and tracking tensors
         self.default_object_pos = torch.zeros((self.num_envs, 3), device=self.device)
-        self.default_object_pos[:, :] = torch.tensor(self.cfg.default_object_pos)
+        self.default_object_pos[:, :] = torch.tensor(self.cfg.default_object_pos, device=self.device)
         self.object_pos = torch.zeros((self.num_envs, 3), device=self.device)
         self.object_rot = torch.zeros((self.num_envs, 4), device=self.device)
         self.object_ee_distance = torch.zeros((self.num_envs, 3), device=self.device)
@@ -156,7 +154,7 @@ class FindEnv(FrankaEnv):
         """
         if env_ids is None:
             env_ids = self.robot._ALL_INDICES
-        super()._compute_intermediate_values()
+        super()._compute_intermediate_values(env_ids)
 
         # Object pose and relative distances
         self.object_pos[env_ids] = self.object.data.root_pos_w[env_ids] - self.scene.env_origins[env_ids]
@@ -171,8 +169,6 @@ class FindEnv(FrankaEnv):
         med_threshold = 0.01
         hard_threshold = 0.005
 
-        # Update found flags and counters
-        # this is triggered once
         self.object_found_easy = torch.logical_or(
             self.object_ee_euclidean_distance < easy_threshold, self.object_found_easy
         )
@@ -300,12 +296,11 @@ def compute_rewards(object_ee_distance: torch.Tensor):
         object_ee_distance (Tensor): Distance between object and end-effector.
 
     Returns:
-        Tuple[Tensor, Tensor]: (reward, distance reward)
+            torch.Tensor: Distance reward.
     """
     std = 0.03
     r_dist = distance_reward(object_ee_distance, std=std)
-    rewards = r_dist
-    return rewards
+    return r_dist
 
 
 @torch.jit.script

@@ -2,54 +2,43 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-import gymnasium as gym
+"""Register Franka gym environments and expose agent configs."""
+
 import os
 
-# from . import agents, deformable_lift, franka, find, occluded_lift, bowl_lift, shadow_lift, trick_lift  # ik_abs_env_cfg, ik_rel_env_cfg, joint_pos_env_cfg
-from . import find  # , grasp, control, pick_and_place
-from . import agents
+import gymnasium as gym
 
-##
-# Register Gym environments.
-##
+from . import agents, find
 
-##
-# Joint Position Control
-##
-print("Registering franka environments")
+_VARIANT_FILES = {
+    "default_cfg": "default.yaml",
+    "rl_only_p": "rl_only_p.yaml",
+    "rl_only_pt": "rl_only_pt.yaml",
+    "rl_only_ptg": "rl_only_ptg.yaml",
+    "tac_recon": "tac_recon.yaml",
+    "full_recon": "full_recon.yaml",
+    "forward_dynamics": "forward_dynamics.yaml",
+    "tac_dynamics": "tac_dynamics.yaml",
+}
 
-agents_dir = os.path.dirname(agents.__file__)
+_AGENTS_DIR = os.path.dirname(agents.__file__)
 
 
-p_file = "rl_only_p.yaml"
-pt_file = "rl_only_pt.yaml"
-ptg_file = "rl_only_ptg.yaml"
-full_recon_file = "full_recon.yaml"
-tactile_recon_file = "tac_recon.yaml"
-forward_dynamics_file = "forward_dynamics.yaml"
-tactile_dynamics_file = "tac_dynamics.yaml"
+def _variant_paths(task_name: str) -> dict[str, str]:
+    base = os.path.join(_AGENTS_DIR, task_name)
+    return {key: os.path.join(base, filename) for key, filename in _VARIANT_FILES.items()}
 
-default_cfg = os.path.join(agents_dir, "find", "default.yaml")
-find_rl_only_p = os.path.join(agents_dir, "find", p_file)
-find_rl_only_pt = os.path.join(agents_dir, "find", pt_file)
-find_rl_only_ptg = os.path.join(agents_dir, "find", ptg_file)
-find_tactile_recon = os.path.join(agents_dir, "find", tactile_recon_file)
-find_full_recon = os.path.join(agents_dir, "find", full_recon_file)
-find_forward_dynamics = os.path.join(agents_dir, "find", forward_dynamics_file)
-find_tactile_dynamics = os.path.join(agents_dir, "find", tactile_dynamics_file)
 
-gym.register(
-    id="Find",
-    entry_point="roto.tasks.franka.find:FindEnv",
-    kwargs={
-        "env_cfg_entry_point": find.FindEnvCfg,
-        "default_cfg": default_cfg,
-        "rl_only_p": find_rl_only_p,
-        "rl_only_pt": find_rl_only_pt,
-        "tac_recon": find_tactile_recon,
-        "full_recon": find_full_recon,
-        "forward_dynamics": find_forward_dynamics,
-        "tac_dynamics": find_tactile_dynamics,
-    },
-    disable_env_checker=True,
-)
+def _register_find_env() -> None:
+    kwargs = {"env_cfg_entry_point": find.FindEnvCfg}
+    kwargs.update(_variant_paths("find"))
+
+    gym.register(
+        id="Find",
+        entry_point="roto.tasks.franka.find:FindEnv",
+        kwargs=kwargs,
+        disable_env_checker=True,
+    )
+
+
+_register_find_env()
