@@ -16,10 +16,10 @@ Reference:
 """
 
 
-import isaaclab.sim as sim_utils
-from isaaclab.actuators.actuator_cfg import ImplicitActuatorCfg
-from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.actuators.actuator_cfg import ImplicitActuatorCfg
+from omni.isaac.lab.assets.articulation import ArticulationCfg
+from omni.isaac.lab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
 # Configuration
@@ -27,7 +27,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 SHADOW_HAND_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowRobot/ShadowHand/shadow_hand_instanceable.usd",
+        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/ShadowHand/shadow_hand_instanceable.usd",
         activate_contact_sensors=True,
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=True,
@@ -53,7 +53,7 @@ SHADOW_HAND_CFG = ArticulationCfg(
     actuators={
         "fingers": ImplicitActuatorCfg(
             joint_names_expr=["robot0_WR.*", "robot0_(FF|MF|RF|LF|TH)J(3|2|1)", "robot0_(LF|TH)J4", "robot0_THJ0"],
-            effort_limit_sim={
+            effort_limit={
                 "robot0_WRJ1": 4.785,
                 "robot0_WRJ0": 2.175,
                 "robot0_(FF|MF|RF|LF)J1": 0.7245,

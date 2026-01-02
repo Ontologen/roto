@@ -11,11 +11,11 @@ from collections.abc import Sequence
 
 import torch
 
-import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObject, RigidObjectCfg
-from isaaclab.sim.schemas.schemas_cfg import CollisionPropertiesCfg
-from isaaclab.utils import configclass
-from isaaclab.utils.math import sample_uniform
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
+from omni.isaac.lab.sim.schemas.schemas_cfg import CollisionPropertiesCfg
+from omni.isaac.lab.utils import configclass
+from omni.isaac.lab.utils.math import sample_uniform
 
 from roto.tasks.shadow.shadow import ShadowEnv, ShadowEnvCfg
 
@@ -31,6 +31,7 @@ class BounceCfg(ShadowEnvCfg):
     default_object_pos = (0.0, object_y_pos, object_z_pos)
     out_of_bounds = 0.24
     min_timesteps_between_contact = 5
+    act_moving_average = 1.0
 
     # Reward scales
     # Approximate values based on typical RL scales and paper description
@@ -208,7 +209,7 @@ class BounceEnv(ShadowEnv):
             "sum_forces": (torch.sum(self.tactile, dim=1)),
             "bounce_reward": (bounce_reward).float(),
             "air_reward": (air_reward).float(),
-            "fall_reward": (fall_reward).float(),
+            # "fall_reward": (fall_reward).float(),
         }
 
         self.extras["counters"] = {
@@ -218,7 +219,6 @@ class BounceEnv(ShadowEnv):
         return total_reward
 
 
-@torch.jit.script
 @torch.jit.script
 def compute_rewards(
     new_bounces: torch.Tensor, 

@@ -10,12 +10,12 @@ from collections.abc import Sequence
 
 import torch
 
-import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObject, RigidObjectCfg
-from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
-from isaaclab.sim.schemas.schemas_cfg import CollisionPropertiesCfg
-from isaaclab.utils import configclass
-from isaaclab.utils.math import sample_uniform
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import RigidObject, RigidObjectCfg
+from omni.isaac.lab.markers import VisualizationMarkers, VisualizationMarkersCfg
+from omni.isaac.lab.sim.schemas.schemas_cfg import CollisionPropertiesCfg
+from omni.isaac.lab.utils import configclass
+from omni.isaac.lab.utils.math import sample_uniform
 
 from roto.tasks.shadow.shadow import ShadowEnv, ShadowEnvCfg
 

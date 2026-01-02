@@ -35,7 +35,7 @@ New GCP projects often have a default GPU quota of 0. You will likely need to re
     *   **Machine Type**: `g2-standard-8` (1 L4 GPU, 8 vCPUs, 32GB Memory).
     *   *Note*: **Check availability first**. L4 GPUs are not available in all regions (e.g., `us-west-2` often lacks them, while `us-west4` is a known good region as of 2026-01-02). Always check the latest [GCP GPU regions](https://cloud.google.com/compute/docs/gpus/gpu-regions-zones) list.
 3.  **Boot Disk**:
-    *   **OS**: **Deep Learning VM with CUDA 12.1 M115** (or newer).
+    *   **OS**: **Deep Learning VM with CUDA 12.1** on **Ubuntu 22.04** (Important: Debian 11 is incompatible).
     *   **Type**: Balanced Persistent Disk or SSD.
     *   **Size**: At least **200 GB**.
 4.  **Firewall**:

@@ -13,19 +13,19 @@ from collections.abc import Sequence
 import numpy as np
 import torch
 
-import isaaclab.sim as sim_utils
-from isaaclab.assets import Articulation, ArticulationCfg
-from isaaclab.envs import ViewerCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import ContactSensor, ContactSensorCfg
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-from isaaclab.utils import configclass
-from isaaclab.utils.math import quat_conjugate, quat_from_angle_axis, quat_mul
+import omni.isaac.lab.sim as sim_utils
+from omni.isaac.lab.assets import Articulation, ArticulationCfg
+from omni.isaac.lab.envs import ViewerCfg
+from omni.isaac.lab.scene import InteractiveSceneCfg
+from omni.isaac.lab.sensors import ContactSensor, ContactSensorCfg
+from omni.isaac.lab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
+from omni.isaac.lab.utils import configclass
+from omni.isaac.lab.utils.math import quat_conjugate, quat_from_angle_axis, quat_mul
 
 from roto.assets.shadow_hand import SHADOW_HAND_CFG
 from roto.tasks.roto_env import RotoEnv, RotoEnvCfg
 
-from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
+from omni.isaac.lab.markers.config import FRAME_MARKER_CFG  # isort: skip
 
 
 

@@ -17,7 +17,7 @@ import argparse
 import os
 import sys
 
-from isaaclab.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from skrl.")
@@ -49,7 +49,7 @@ app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 import torch
 
-import isaaclab_tasks  # noqa: F401
+import omni.isaac.lab_tasks  # noqa: F401
 from common_utils import (
     LOG_PATH,
     make_env,
@@ -57,9 +57,9 @@ from common_utils import (
     set_seed,
     update_env_cfg,
 )
-from isaaclab.utils import update_dict
-from isaaclab_tasks.utils.hydra import register_task_to_hydra
-from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+from omni.isaac.lab.utils import update_dict
+from omni.isaac.lab_tasks.utils.hydra import register_task_to_hydra
+from omni.isaac.lab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 from isaaclab_rl.rl.ppo import PPO, PPO_DEFAULT_CONFIG
 from isaaclab_rl.tools.writer import Writer

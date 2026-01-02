@@ -18,12 +18,12 @@ from __future__ import annotations
 
 import torch
 
-from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg, ViewerCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sim import PhysxCfg, SimulationCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
-from isaaclab.utils import configclass
-from isaaclab.utils.math import (
+from omni.isaac.lab.envs import DirectRLEnv, DirectRLEnvCfg, ViewerCfg
+from omni.isaac.lab.scene import InteractiveSceneCfg
+from omni.isaac.lab.sim import PhysxCfg, SimulationCfg
+from omni.isaac.lab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
+from omni.isaac.lab.utils import configclass
+from omni.isaac.lab.utils.math import (
     sample_uniform,
     saturate,
 )
@@ -84,7 +84,7 @@ class RotoEnv(DirectRLEnv):
         # Joint limits and targets
         self.robot_joint_pos_lower_limits = self.robot.data.soft_joint_pos_limits[0, :, 0].to(device=self.device)
         self.robot_joint_pos_upper_limits = self.robot.data.soft_joint_pos_limits[0, :, 1].to(device=self.device)
-        self.robot_joint_vel_limits = self.robot.data.joint_vel_limits[0, :].to(device=self.device)
+        self.robot_joint_vel_limits = self.robot.data.soft_joint_vel_limits[0, :].to(device=self.device)
 
         self.joint_pos_cmd = torch.zeros((self.num_envs, self.robot.num_joints), device=self.device)
         self.prev_joint_pos_cmd = torch.zeros((self.num_envs, self.robot.num_joints), device=self.device)

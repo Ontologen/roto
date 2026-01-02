@@ -16,7 +16,7 @@ a more user-friendly way.
 import argparse
 import sys
 
-from isaaclab.app import AppLauncher
+from omni.isaac.lab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with skrl.")
@@ -44,18 +44,20 @@ sys.argv = [sys.argv[0]] + hydra_args
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
-import isaaclab_tasks  # noqa: F401
+import omni.isaac.lab_tasks  # noqa: F401
 from common_utils import LOG_PATH, make_env, train_one_seed, update_env_cfg
-from isaaclab.utils import update_dict
-from isaaclab_tasks.utils.hydra import register_task_to_hydra
-from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
+from omni.isaac.lab.utils import update_dict
+from omni.isaac.lab_tasks.utils.hydra import register_task_to_hydra
+from omni.isaac.lab_tasks.utils.parse_cfg import load_cfg_from_registry
 
 from isaaclab_rl.tools.writer import Writer
 
 
 def main() -> None:
     """Train a RoTO policy using the selected Isaac Lab task and agent config."""
+
     env_cfg, agent_cfg = register_task_to_hydra(args_cli.task, "default_cfg")
+
     specialised_cfg = load_cfg_from_registry(args_cli.task, args_cli.agent_cfg)
     agent_cfg = update_dict(agent_cfg, specialised_cfg)
 
