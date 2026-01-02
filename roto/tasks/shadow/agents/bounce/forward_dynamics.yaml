@@ -1,7 +1,7 @@
 # Shadow Bounce config: forward_dynamics
 
 agent:
-  rollouts: 16
+  rollouts: 32
   learning_epochs: 10
   mini_batches: 8
   discount_factor: 0.99

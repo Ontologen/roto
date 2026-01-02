@@ -29,8 +29,14 @@ class BounceCfg(ShadowEnvCfg):
     object_y_pos = -0.39
     object_z_pos = 0.6
     default_object_pos = (0.0, object_y_pos, object_z_pos)
-    out_of_bounds = 0.2
+    out_of_bounds = 0.24
     min_timesteps_between_contact = 5
+
+    # Reward scales
+    # Approximate values based on typical RL scales and paper description
+    air_reward_scale = 0.1 
+    bounce_reward_scale = 10.0
+    fall_penalty_scale = -5.0
 
     ball_colour = (0.7294117647058823, 0.3176470588235294, 0.7137254901960784)
 
@@ -141,6 +147,11 @@ class BounceEnv(ShadowEnv):
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         """Terminate when the ball falls or leaves the workspace."""
         self._compute_intermediate_values()
+        
+        # Paper Appendix E.3/E.4: Fall penalty applied if object > 24cm from center.
+        # However, E.4 says "terminate early if the balls fall out of the hand, measured by a distance".
+        # We stick to the out_of_bounds check (y-axis) and height check (z-axis < fall_height)
+        # But for the REWARD penalty, we will check radial distance > 0.24 (see compute_rewards).
 
         fall = self.object_pos[:, 2] < self.cfg.fall_height
         out_of_bounds = torch.abs(self.object_pos[:, 1] - self.cfg.object_y_pos) > self.cfg.out_of_bounds
@@ -179,14 +190,25 @@ class BounceEnv(ShadowEnv):
         self.object.write_root_velocity_to_sim(object_default_state[:, 7:], env_ids)
 
     def _get_rewards(self) -> torch.Tensor:
-        """Reward bounces."""
-        total_reward, bounce_reward = compute_rewards(self.new_bounces)
+        """Reward bounces, air time, and penalize falls."""
+        total_reward, bounce_reward, air_reward, fall_reward = compute_rewards(
+            self.new_bounces, 
+            self.time_without_contact,
+            self.object_pos,
+            self.cfg.default_object_pos,
+            self.cfg.bounce_reward_scale,
+            self.cfg.air_reward_scale,
+            self.cfg.fall_penalty_scale
+        )
 
         self.extras["log"] = {
             "object_z_linvel": (self.object_linvel[:, 2].half()),
             "object_z_angvel": (self.object_angvel[:, 2].half()),
             "sum_forces": (torch.sum(self.tactile, dim=1)),
+            "sum_forces": (torch.sum(self.tactile, dim=1)),
             "bounce_reward": (bounce_reward).float(),
+            "air_reward": (air_reward).float(),
+            "fall_reward": (fall_reward).float(),
         }
 
         self.extras["counters"] = {
@@ -197,10 +219,39 @@ class BounceEnv(ShadowEnv):
 
 
 @torch.jit.script
-def compute_rewards(new_bounces: torch.Tensor):
+@torch.jit.script
+def compute_rewards(
+    new_bounces: torch.Tensor, 
+    time_without_contact: torch.Tensor,
+    object_pos: torch.Tensor,
+    default_object_pos: tuple[float, float, float],
+    bounce_scale: float,
+    air_scale: float,
+    fall_scale: float
+):
     """Return dense rewards encouraging stable bounce cadence."""
-    bounce_reward = new_bounces * 10
+    
+    # 1. Bounce Reward: Bonus for valid bounce events
+    bounce_reward = new_bounces * bounce_scale
 
-    total_reward = bounce_reward
+    # 2. Air Reward: Proportional to time since last contact
+    # "rewarded proportionally to number of time steps since last contact"
+    # usage of log or linear is ambiguous, assuming linear for now based on "proportionally"
+    air_reward = time_without_contact * air_scale
 
-    return total_reward, bounce_reward
+    # 3. Fall Penalty
+    # "applied if the object is more than 24 cm from a fixed center position"
+    # default_object_pos is (0.0, -0.39, 0.6)
+    # We calculate distance in XY plane or 3D? Likely 3D or XY relative to palm.
+    # Assuming Euclidean distance from start point.
+    
+    target_pos = torch.tensor(default_object_pos, device=object_pos.device).unsqueeze(0)
+    dist = torch.norm(object_pos - target_pos, dim=1)
+    
+    # Penalty applies if dist > 0.24
+    fall_mask = (dist > 0.24).float()
+    fall_reward = fall_mask * fall_scale
+
+    total_reward = bounce_reward + air_reward + fall_reward
+
+    return total_reward, bounce_reward, air_reward, fall_reward
